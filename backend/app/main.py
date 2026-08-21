@@ -8,8 +8,14 @@ Endpoints:
   GET /api/wards                       → ward centroids and metadata
   GET /api/hotspots                    → DBSCAN crime hotspots for a date range
   GET /api/escalation                  → minor-crime escalation scores per ward
-  GET /api/risk-scores                 → all wards ranked by risk score
+  GET /api/risk-scores                 → all wards ranked by risk score (descriptive, current window)
   GET /api/risk-score                  → single ward risk score with explanation
+  GET /api/predictions/risk            → future-window crime prediction (temporal ML pipeline)
+  GET /api/trends                      → trend direction + anomaly detection (historical baseline)
+  GET /api/alerts                      → ranked intelligence alerts (from Modules 5 + 3b)
+  PATCH /api/alerts/{alert_id}         → update an alert's workflow status
+  GET /api/drilldown/district/{name}   → district intelligence overview (orchestrates Modules 1-3)
+  GET /api/drilldown/ward/{id}         → ward intelligence overview (orchestrates Modules 1-4)
   GET /api/network                     → offender co-occurrence graph
   GET /api/network/individual/{id}     → single accused details + connections
   POST /api/ai-chat                    → AI assistant for dashboard and general Q&A
@@ -24,7 +30,7 @@ from fastapi import FastAPI, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from .database import engine, get_db, Base
 from .models import Incident, Accused, DistrictSocioEconomic, Ward, incident_accused
@@ -35,12 +41,29 @@ from .analytics import (
     compute_escalation,
 )
 from .risk_scoring import compute_risk_scores
+from .prediction import predict_risk, VALID_HORIZONS, DEFAULT_HORIZON
+from .trend_analysis import analyze_trends, GRANULARITIES, DEFAULT_GRANULARITY
+from .alert_engine import generate_alerts, set_alert_status, VALID_STATUSES
+from .drilldown import get_district_drilldown, get_ward_drilldown, DRILLDOWN_GRANULARITY, DRILLDOWN_HORIZON_DAYS
 from .network_analysis import build_network, get_individual
+from .intelligence_brief import generate_intelligence_brief
+from .copilot import answer_copilot
 
 
 class AiChatRequest(BaseModel):
     question: str
     dashboard_context: dict | None = None
+
+
+class CopilotRequest(BaseModel):
+    message: str
+    context: dict | None = None
+    history: list[dict] | None = None
+
+
+class AlertStatusUpdate(BaseModel):
+    status: str
+    note: str | None = None
 
 
 def _load_local_env() -> None:
@@ -72,11 +95,16 @@ app = FastAPI(
     version="0.4.0",
 )
 
-# CORS — allow all origins for local development
+_cors_raw = os.getenv("CORS_ORIGINS", "*")
+_cors_origins = [origin.strip() for origin in _cors_raw.split(",") if origin.strip()]
+_cors_wildcard = _cors_origins == ["*"]
+
+# Local development defaults to wildcard; deployments can set a comma-separated
+# allow-list, e.g. CORS_ORIGINS=https://dashboard.example.com.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=not _cors_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -119,9 +147,11 @@ def list_incidents(
     ward_id: int = Query(None),
     min_severity: int = Query(None, ge=1, le=10),
     max_severity: int = Query(None, ge=1, le=10),
+    date_from: str = Query(None, alias="from", description="Start date ISO format"),
+    date_to: str = Query(None, alias="to", description="End date ISO format"),
     db: Session = Depends(get_db),
 ):
-    """Paginated list of incidents with optional filters."""
+    """Paginated, most-recent-first list of incidents with optional filters (Module 7's recent-incidents card)."""
     q = db.query(Incident)
 
     if crime_type:
@@ -134,15 +164,39 @@ def list_incidents(
         q = q.filter(Incident.severity >= min_severity)
     if max_severity is not None:
         q = q.filter(Incident.severity <= max_severity)
+    dt_from = _parse_date(date_from)
+    dt_to = _parse_date(date_to)
+    if dt_from:
+        q = q.filter(Incident.timestamp >= dt_from)
+    if dt_to:
+        q = q.filter(Incident.timestamp <= dt_to)
 
     total = q.count()
     incidents = q.order_by(Incident.timestamp.desc()).offset(offset).limit(limit).all()
+
+    # accused_count per incident, batched in one query for the current page
+    # (never one query per row).
+    inc_ids = [inc.id for inc in incidents]
+    accused_counts = {}
+    if inc_ids:
+        rows = db.execute(
+            select(incident_accused.c.incident_id, func.count(incident_accused.c.accused_id))
+            .where(incident_accused.c.incident_id.in_(inc_ids))
+            .group_by(incident_accused.c.incident_id)
+        ).fetchall()
+        accused_counts = {iid: n for iid, n in rows}
+
+    data = []
+    for inc in incidents:
+        d = inc.to_dict()
+        d["accused_count"] = accused_counts.get(inc.id, 0)
+        data.append(d)
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "data": [inc.to_dict() for inc in incidents],
+        "data": data,
     }
 
 
@@ -284,6 +338,170 @@ def get_risk_score(
     return {"error": "Ward not found", "ward_id": ward_id}
 
 
+@app.get("/api/predictions/risk")
+def get_predictive_risk(
+    district: str = Query(None, description="Optional district filter"),
+    ward_id: int = Query(None, description="Optional single ward to predict"),
+    crime_type: str = Query(None, description="Optional crime type filter"),
+    prediction_horizon: int = Query(DEFAULT_HORIZON,
+                                    description=f"Forecast horizon in days: one of {VALID_HORIZONS}"),
+    date_to: str = Query(None, alias="to",
+                         description="Anchor date the forecast is made from (defaults to the latest data available)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Forecast crime risk for each ward over the next `prediction_horizon` days,
+    using a temporal ML pipeline trained on sliding historical windows (see
+    prediction.py). Unlike /api/risk-score (a descriptive snapshot of the
+    current window), this trains on past-window -> future-window examples and
+    validates with a strict old-to-new temporal split, so it is a genuine
+    forecast rather than an in-sample fit.
+    """
+    as_of = _parse_date(date_to)
+    return predict_risk(
+        db,
+        district=district,
+        ward_id=ward_id,
+        crime_type=crime_type,
+        horizon_days=prediction_horizon,
+        as_of=as_of,
+    )
+
+
+@app.get("/api/trends")
+def get_trends(
+    district: str = Query(None, description="Optional district filter"),
+    ward_id: int = Query(None, description="Optional single ward to analyze"),
+    crime_type: str = Query(None, description="Optional crime type filter"),
+    date_from: str = Query(None, alias="from", description="Start date ISO format"),
+    date_to: str = Query(None, alias="to", description="End date ISO format"),
+    granularity: str = Query(DEFAULT_GRANULARITY,
+                             description=f"Aggregation period: one of {GRANULARITIES}"),
+    db: Session = Depends(get_db),
+):
+    """
+    Trend + anomaly detection (Module 5) — a DIFFERENT question from
+    /api/predictions/risk: this looks at what already happened and flags
+    deviations from historical baseline, it does not forecast the future.
+    See trend_analysis.py for the full method.
+    """
+    return analyze_trends(
+        db,
+        district=district,
+        ward_id=ward_id,
+        crime_type=crime_type,
+        date_from=_parse_date(date_from),
+        date_to=_parse_date(date_to),
+        granularity=granularity,
+    )
+
+
+@app.get("/api/alerts")
+def get_alerts(
+    district: str = Query(None, description="Optional district filter"),
+    ward_id: int = Query(None, description="Optional single ward filter"),
+    crime_type: str = Query(None, description="Optional crime type filter"),
+    date_from: str = Query(None, alias="from", description="Start date ISO format"),
+    date_to: str = Query(None, alias="to", description="End date ISO format"),
+    granularity: str = Query(DEFAULT_GRANULARITY, description=f"One of {GRANULARITIES}"),
+    severity: str = Query(None, description="ALL | CRITICAL | HIGH | MEDIUM | LOW"),
+    status: str = Query(None, description="ALL | NEW | REVIEWED | INVESTIGATING | CLOSED "
+                                          "(omit to show only active alerts)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Intelligence Alert Center (Module 6) — normalizes real Module 5 anomalies
+    / sustained trends (and, for meaningfully high-risk wards, Module 3b
+    predictions) into ranked, stateful alerts. Never fabricates an alert:
+    an empty scope returns an empty list, not synthetic data.
+    """
+    return generate_alerts(
+        db,
+        district=district,
+        ward_id=ward_id,
+        crime_type=crime_type,
+        date_from=_parse_date(date_from),
+        date_to=_parse_date(date_to),
+        granularity=granularity,
+        severity=severity,
+        status=status,
+    )
+
+
+@app.patch("/api/alerts/{alert_id}")
+def patch_alert_status(alert_id: str, body: AlertStatusUpdate, db: Session = Depends(get_db)):
+    """Update an alert's workflow status. This is the only part of an alert that's persisted."""
+    new_status = (body.status or "").upper()
+    if new_status not in VALID_STATUSES:
+        return {"error": f"Invalid status '{body.status}'. Must be one of {VALID_STATUSES}."}
+    try:
+        return set_alert_status(db, alert_id, new_status, note=body.note)
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MODULE 7 ENDPOINTS — District & Ward Intelligence Drilldown
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/drilldown/district/{district}")
+def get_district_drilldown_endpoint(
+    district: str,
+    crime_type: str = Query(None, description="Optional crime type filter"),
+    date_from: str = Query(None, alias="from", description="Start date ISO format"),
+    date_to: str = Query(None, alias="to", description="End date ISO format"),
+    granularity: str = Query(DRILLDOWN_GRANULARITY, description="Aggregation period for the trend summary"),
+    prediction_horizon: int = Query(DRILLDOWN_HORIZON_DAYS, description="Forecast horizon in days"),
+    db: Session = Depends(get_db),
+):
+    """
+    District Intelligence Overview (Module 7) — orchestrates existing Modules
+    1/2/3 (predict_risk, analyze_trends, generate_alerts) plus detect_hotspots
+    into one response: KPIs, crime composition, trend summary, and a ranked
+    ward table. Never retrains a model per ward — one call each, district-wide.
+    """
+    return get_district_drilldown(
+        db, district=district, crime_type=crime_type,
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        granularity=granularity, horizon_days=prediction_horizon,
+    )
+
+
+@app.get("/api/intelligence-brief")
+def get_intelligence_brief(
+    district: str = Query(None), ward_id: int = Query(None), crime_type: str = Query(None),
+    date_from: str = Query(None, alias="from"), date_to: str = Query(None, alias="to"),
+    prediction_horizon: int = Query(DRILLDOWN_HORIZON_DAYS), granularity: str = Query(DRILLDOWN_GRANULARITY),
+    db: Session = Depends(get_db),
+):
+    """Structured, deterministic Phase 5 brief composed from drilldown outputs."""
+    return generate_intelligence_brief(db, district=district, ward_id=ward_id, crime_type=crime_type,
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        horizon_days=prediction_horizon, granularity=granularity)
+
+
+@app.get("/api/drilldown/ward/{ward_id}")
+def get_ward_drilldown_endpoint(
+    ward_id: int,
+    crime_type: str = Query(None, description="Optional crime type filter"),
+    date_from: str = Query(None, alias="from", description="Start date ISO format"),
+    date_to: str = Query(None, alias="to", description="End date ISO format"),
+    granularity: str = Query(DRILLDOWN_GRANULARITY, description="Aggregation period for the trend card"),
+    prediction_horizon: int = Query(DRILLDOWN_HORIZON_DAYS, description="Forecast horizon in days"),
+    db: Session = Depends(get_db),
+):
+    """
+    Ward Intelligence Overview (Module 7) — the same orchestration as the
+    district drilldown, scoped to one ward, plus repeat-offender/network
+    context (build_network) and a descriptive day/hour activity pattern.
+    """
+    return get_ward_drilldown(
+        db, ward_id=ward_id, crime_type=crime_type,
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        granularity=granularity, horizon_days=prediction_horizon,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MODULE 4 ENDPOINTS — Offender Network Analysis
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -373,15 +591,25 @@ async def ai_chat(request: Request):
         }
 
     api_key = os.getenv("OPENAI_API_KEY")
-    print("API KEY FOUND:", bool(api_key))
-    print("API KEY:", api_key[:10] + "..." if api_key else "None")
-
     if api_key:
         answer = _call_openai_chat(question, payload.dashboard_context or {}, api_key)
         if answer:
             return {"answer": answer}
 
     return {"answer": _offline_chat_answer(question, payload.dashboard_context or {})}
+
+
+@app.post("/api/copilot")
+async def copilot(request: Request, db: Session = Depends(get_db)):
+    """Evidence-grounded Phase 6 Intelligence Copilot endpoint."""
+    try:
+        payload = CopilotRequest.model_validate_json(await request.body())
+    except ValidationError:
+        return {"answer": "I could not read that request. Please ask an intelligence question.", "evidence": [], "actions": [], "scope": {}, "sources": []}
+    message = (payload.message or "").strip()
+    if not message:
+        return {"answer": "Ask about risk, trends, alerts, hotspots, incidents, offenders, networks, or the current intelligence brief.", "evidence": [], "actions": [], "scope": payload.context or {}, "sources": []}
+    return answer_copilot(db, message, payload.context or {}, payload.history or [])
 
 
 def _parse_date(s: str | None) -> datetime | None:
@@ -447,24 +675,15 @@ def _call_openai_chat(question: str, dashboard_context: dict, api_key: str) -> s
         response.raise_for_status()
         data = response.json()
 
-        print("========== GROQ RESPONSE ==========")
-        print(json.dumps(data, indent=2))
-        print("===================================")
-
     except requests.exceptions.HTTPError as e:
-        print("Groq HTTP Error:", e.response.status_code)
-        print(e.response.text)
         return None
 
     except Exception as e:
-        print("Groq API Error:", e)
         return None
 
     try:
         return data["choices"][0]["message"]["content"].strip()
     except Exception:
-        print("Unexpected Groq response:")
-        print(json.dumps(data, indent=2))
         return None
 
 def _offline_chat_answer(question: str, dashboard_context: dict) -> str:

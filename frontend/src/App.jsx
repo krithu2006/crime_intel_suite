@@ -1,9 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { API_URL } from './config.js';
 import HotspotMap from './HotspotMap.jsx';
 import RiskScoreMap from './RiskScoreMap.jsx';
 import RisingZones from './RisingZones.jsx';
 import { NetworkGraph, NetworkSidebar } from './NetworkView.jsx';
+import { HorizonSelector, ModelPerformanceCard, PredictiveRiskBlock, PREDICTION_DISCLAIMER, DEFAULT_HORIZON } from './PredictiveRisk.jsx';
+import TrendsPanel from './TrendsPanel.jsx';
+import AlertsPanel from './AlertsPanel.jsx';
+import DrilldownPanel from './DrilldownPanel.jsx';
+import IntelligenceBrief from './IntelligenceBrief.jsx';
 
 // AppSail suspends the backend instance when it is idle, so the first request
 // after a cold start can fail or hang for several seconds. The dashboard polls
@@ -38,12 +43,30 @@ function App() {
   const [riskScores, setRiskScores] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
 
+  // Module 3b state — predictive (future-window) risk
+  const [predictions, setPredictions] = useState(null);
+  const [predictionsLoading, setPredictionsLoading] = useState(false);
+  const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON);
+
+  // Module 5 state — trend analysis + anomaly detection (distinct from
+  // predictions above: this describes what already happened, not a forecast)
+  const [trends, setTrends] = useState(null);
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [trendGranularity, setTrendGranularity] = useState('weekly');
+
   // Module 4 state
   const [network, setNetwork] = useState(null);
   const [networkLoading, setNetworkLoading] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
 
-  // View toggle: 'hotspots', 'risk', or 'network'
+  // Module 6 state — Intelligence Alert Center
+  const [alertsData, setAlertsData] = useState(null);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState('ALL');
+  const [alertStatusFilter, setAlertStatusFilter] = useState('ACTIVE');
+  const [newAlertCount, setNewAlertCount] = useState(0);
+
+  // View toggle: 'hotspots', 'risk', 'network', 'trends', or 'alerts'
   const [mapView, setMapView] = useState('hotspots');
 
   // Date range
@@ -55,6 +78,19 @@ function App() {
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [crimeTypes, setCrimeTypes] = useState([]);
   const [selectedCrimeType, setSelectedCrimeType] = useState('');
+
+  // Ward scope — set by alert navigation or by drilling into a ward (Module
+  // 7). Clearable via the chip next to the filters, or the breadcrumb.
+  const [selectedWard, setSelectedWard] = useState(null); // { id, name, district } | null
+
+  // Module 7 state — District & Ward Intelligence Drilldown
+  const [districtDrilldown, setDistrictDrilldown] = useState(null);
+  const [districtDrilldownLoading, setDistrictDrilldownLoading] = useState(false);
+  const [wardDrilldown, setWardDrilldown] = useState(null);
+  const [wardDrilldownLoading, setWardDrilldownLoading] = useState(false);
+  const [brief, setBrief] = useState(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefError, setBriefError] = useState(null);
 
   // ── Wake the backend, then fetch health ──
   // /api/health is the lightest endpoint, so it doubles as the wake-up ping.
@@ -173,6 +209,104 @@ function App() {
       .catch(() => setRiskLoading(false));
   }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType]);
 
+  // ── Fetch predictions ──
+  // The prediction anchor is the selected "To" date (or the latest data if
+  // none is set) — see prediction.py's `as_of`. District/ward/crime-type
+  // filters are passed through so the forecast scope always matches what
+  // the analyst is looking at.
+  const fetchPredictions = useCallback(() => {
+    setPredictionsLoading(true);
+    const params = new URLSearchParams({ prediction_horizon: String(horizonDays) });
+    if (dateTo) params.set('to', dateTo);
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
+    fetch(`${API_URL}/api/predictions/risk?${params}`)
+      .then((res) => res.json())
+      .then((data) => { setPredictions(data); setPredictionsLoading(false); })
+      .catch(() => setPredictionsLoading(false));
+  }, [dateTo, selectedDistrict, selectedCrimeType, selectedWard, horizonDays]);
+
+  // ── Fetch trends ──
+  const fetchTrends = useCallback(() => {
+    setTrendsLoading(true);
+    const params = new URLSearchParams({ granularity: trendGranularity });
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
+    fetch(`${API_URL}/api/trends?${params}`)
+      .then((res) => res.json())
+      .then((data) => { setTrends(data); setTrendsLoading(false); })
+      .catch(() => setTrendsLoading(false));
+  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard, trendGranularity]);
+
+  // ── Fetch alerts (Module 6 — lazy, only while the Alerts tab is open) ──
+  const fetchAlerts = useCallback(() => {
+    setAlertsLoading(true);
+    const params = new URLSearchParams({ granularity: trendGranularity });
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
+    if (alertSeverityFilter && alertSeverityFilter !== 'ALL') params.set('severity', alertSeverityFilter);
+    if (alertStatusFilter && alertStatusFilter !== 'ACTIVE') params.set('status', alertStatusFilter);
+    fetch(`${API_URL}/api/alerts?${params}`)
+      .then((res) => res.json())
+      .then((data) => { setAlertsData(data); setAlertsLoading(false); })
+      .catch(() => setAlertsLoading(false));
+  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard, trendGranularity,
+      alertSeverityFilter, alertStatusFilter]);
+
+  // ── Bell indicator: global NEW-alert count, independent of the current
+  // filters so it doesn't fluctuate as the analyst browses other tabs ──
+  const fetchNewAlertCount = useCallback(() => {
+    fetch(`${API_URL}/api/alerts?status=NEW`)
+      .then((res) => res.json())
+      .then((data) => setNewAlertCount(data?.summary?.new ?? 0))
+      .catch(() => {});
+  }, []);
+
+  // ── Fetch district/ward drilldown (Module 7 — lazy, only while that tab
+  // is open, and only one of the two depending on whether a ward is picked) ──
+  const fetchDistrictDrilldown = useCallback(() => {
+    if (!selectedDistrict) return;
+    setDistrictDrilldownLoading(true);
+    const params = new URLSearchParams({ granularity: trendGranularity, prediction_horizon: String(horizonDays) });
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    fetch(`${API_URL}/api/drilldown/district/${encodeURIComponent(selectedDistrict)}?${params}`)
+      .then((res) => res.json())
+      .then((data) => { setDistrictDrilldown(data); setDistrictDrilldownLoading(false); })
+      .catch(() => setDistrictDrilldownLoading(false));
+  }, [selectedDistrict, selectedCrimeType, dateFrom, dateTo, trendGranularity, horizonDays]);
+
+  const fetchWardDrilldown = useCallback(() => {
+    if (!selectedWard) return;
+    setWardDrilldownLoading(true);
+    const params = new URLSearchParams({ granularity: trendGranularity, prediction_horizon: String(horizonDays) });
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    fetch(`${API_URL}/api/drilldown/ward/${selectedWard.id}?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setWardDrilldown(data);
+        setWardDrilldownLoading(false);
+        // Back-fill district context if the ward was selected without one
+        // (e.g. from a district-unfiltered alert) — the ward response's
+        // district is authoritative, straight from the Ward record.
+        if (data.status === 'ok' && data.district) {
+          setSelectedDistrict((cur) => cur || data.district);
+          setSelectedWard((cur) => (cur && !cur.district ? { ...cur, district: data.district } : cur));
+        }
+      })
+      .catch(() => setWardDrilldownLoading(false));
+  }, [selectedWard, selectedCrimeType, dateFrom, dateTo, trendGranularity, horizonDays]);
+
   // ── Fetch network ──
   const fetchNetwork = useCallback(() => {
     setNetworkLoading(true);
@@ -196,9 +330,135 @@ function App() {
       fetchHotspots();
       fetchEscalation();
       fetchRiskScores();
+      fetchPredictions();
       fetchNetwork();
     }
-  }, [health, error, fetchHotspots, fetchEscalation, fetchRiskScores, fetchNetwork]);
+  }, [health, error, fetchHotspots, fetchEscalation, fetchRiskScores, fetchPredictions, fetchNetwork]);
+
+  // Trends is fetched lazily — only while that tab is active — since it's
+  // a heavier analytics call and there's no map/chart to keep in sync when
+  // the tab isn't visible. Re-fetches whenever filters or granularity change
+  // while the tab is open.
+  useEffect(() => {
+    if (health && !error && mapView === 'trends') {
+      fetchTrends();
+    }
+  }, [health, error, mapView, fetchTrends]);
+
+  // Alerts is fetched lazily too, for the same reason as Trends.
+  useEffect(() => {
+    if (health && !error && mapView === 'alerts') {
+      fetchAlerts();
+    }
+  }, [health, error, mapView, fetchAlerts]);
+
+  // Drilldown: fetch ward-level data when a ward is selected, otherwise
+  // district-level — never both, and never anything with no district picked
+  // (that state shows the district selector instead, see DrilldownPanel).
+  useEffect(() => {
+    if (health && !error && mapView === 'drilldown') {
+      if (selectedWard) fetchWardDrilldown();
+      else if (selectedDistrict) fetchDistrictDrilldown();
+    }
+  }, [health, error, mapView, selectedWard, selectedDistrict, fetchWardDrilldown, fetchDistrictDrilldown]);
+
+  // Bell count is independent of the active tab/filters — fetched once the
+  // backend is up, and re-synced after any status change (see handleAlertStatusChange).
+  useEffect(() => {
+    if (health && !error) {
+      fetchNewAlertCount();
+    }
+  }, [health, error, fetchNewAlertCount]);
+
+  // A status change updates the local list immediately (no full refetch) and
+  // re-syncs the bell count, since that's the only thing a status change can affect.
+  const handleAlertStatusChange = useCallback((alertId, newStatus) => {
+    return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then((res) => res.json())
+      .then((updated) => {
+        if (updated?.error) throw new Error(updated.error);
+        setAlertsData((prev) => {
+          if (!prev) return prev;
+          const nextAlerts = prev.alerts.map((a) => (a.id === alertId ? { ...a, status: updated.status, note: updated.note } : a));
+          return { ...prev, alerts: nextAlerts };
+        });
+        fetchNewAlertCount();
+        return updated;
+      });
+  }, [fetchNewAlertCount]);
+
+  // Navigate from an alert into the relevant existing module, preserving
+  // district/crime-type/ward scope so the analyst lands in the right context.
+  const handleAlertNavigate = useCallback((action, alert) => {
+    setSelectedDistrict(alert.district || '');
+    setSelectedCrimeType(alert.crime_type || '');
+    setSelectedWard(alert.ward_id != null ? { id: alert.ward_id, name: alert.ward, district: alert.district } : null);
+    if (action === 'view_trend') setMapView('trends');
+    else if (action === 'view_risk') {
+      setMapView('risk');
+      if (alert.prediction_horizon_days) setHorizonDays(alert.prediction_horizon_days);
+    } else if (action === 'view_hotspot') setMapView('hotspots');
+    else if (action === 'view_network') setMapView('network');
+  }, []);
+
+  // ── Module 7 — the ONE way any module selects a ward (district ward
+  // table, risk card, hotspot popup, alert) so there's never more than one
+  // ward-selection system. Also locks in the ward's district, since a ward
+  // without its district doesn't make sense as a filter.
+  const selectWard = useCallback((wardId, wardName, district) => {
+    setSelectedDistrict(district || '');
+    setSelectedWard({ id: wardId, name: wardName, district: district || '' });
+    setMapView('drilldown');
+  }, []);
+
+  const clearWard = useCallback(() => setSelectedWard(null), []);
+  const clearToKarnataka = useCallback(() => {
+    setSelectedDistrict('');
+    setSelectedWard(null);
+  }, []);
+
+  // A district change must never leave an "impossible" ward selected —
+  // clear it unless the ward actually belongs to the newly selected district.
+  useEffect(() => {
+    if (selectedWard && selectedWard.district && selectedWard.district !== selectedDistrict) {
+      setSelectedWard(null);
+    }
+  }, [selectedDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Generic "jump into another module, keeping district/ward/crime-type
+  // scope" — used by the drilldown's Trend/Risk/Alerts/Hotspot/Network quick
+  // links (Phase 3's handleAlertNavigate is the same idea, scoped to an alert).
+  const goToView = useCallback((view, options = {}) => {
+    setMapView(view);
+    if (options.horizonDays) setHorizonDays(options.horizonDays);
+  }, []);
+
+  const fetchBrief = useCallback(() => {
+    if (!selectedDistrict && !selectedWard) { setBrief(null); return; }
+    setBriefLoading(true); setBriefError(null);
+    const params = new URLSearchParams({ prediction_horizon: String(horizonDays), granularity: trendGranularity });
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
+    if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    fetch(`${API_URL}/api/intelligence-brief?${params}`).then((r) => r.json())
+      .then((data) => { setBrief(data); setBriefLoading(false); })
+      .catch((e) => { setBriefError(e.message); setBriefLoading(false); });
+  }, [selectedDistrict, selectedWard, selectedCrimeType, dateFrom, dateTo, horizonDays, trendGranularity]);
+
+  useEffect(() => { if (health && !error && mapView === 'brief') fetchBrief(); }, [health, error, mapView, fetchBrief]);
+
+  // predictions keyed by ward_id for O(1) lookup from ward cards/popups
+  const predictionsByWard = useMemo(() => {
+    const map = new Map();
+    for (const p of predictions?.predictions || []) map.set(p.ward_id, p);
+    return map;
+  }, [predictions]);
 
   // A selected offender may not exist after re-filtering the network, so clear
   // the selection whenever the district or crime-type filter changes.
@@ -211,7 +471,17 @@ function App() {
   if (mapView === 'hotspots') {
     sidePanel = <RisingZones hotspots={hotspots} loading={hotspotsLoading} />;
   } else if (mapView === 'risk') {
-    sidePanel = <RiskRankings riskScores={riskScores} loading={riskLoading} />;
+    sidePanel = (
+      <RiskRankings
+        riskScores={riskScores}
+        loading={riskLoading}
+        predictionsByWard={predictionsByWard}
+        modelPerformance={predictions?.model_performance}
+        predictionsLoading={predictionsLoading}
+        highlightWardId={selectedWard?.id}
+        onSelectWard={selectWard}
+      />
+    );
   } else if (mapView === 'network') {
     sidePanel = <NetworkSidebar
       selectedNodeId={selectedNodeId}
@@ -247,6 +517,22 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {!loading && !error && (
+              <button
+                type="button"
+                onClick={() => setMapView('alerts')}
+                className="relative flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 transition-colors hover:border-primary-400/40 hover:bg-primary-500/10 hover:text-white"
+                aria-label="Open Intelligence Alerts"
+                title="Intelligence Alerts"
+              >
+                <span aria-hidden="true">🔔</span>
+                {newAlertCount > 0 && (
+                  <span className="badge bg-rose-500/90 text-white text-[10px] px-1.5 py-0 min-w-[18px] justify-center">
+                    {newAlertCount}
+                  </span>
+                )}
+              </button>
+            )}
             {loading ? (
               <span className="badge bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                 <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
@@ -313,12 +599,18 @@ function App() {
               <StatCard icon="📍" label="Wards" value={health.wards?.toLocaleString() ?? '—'}
                 color="from-accent-emerald/20 to-accent-emerald/5" borderColor="border-emerald-500/20" />
               <StatCard
-                icon={mapView === 'risk' ? '🎯' : mapView === 'network' ? '🕸️' : '🔥'}
-                label={mapView === 'risk' ? 'High-Risk Wards' : mapView === 'network' ? 'Identified Groups' : 'Hotspot Clusters'}
+                icon={mapView === 'risk' ? '🎯' : mapView === 'network' ? '🕸️' : mapView === 'trends' ? '📈' : mapView === 'alerts' ? '🚨' : mapView === 'drilldown' ? '🧭' : '🔥'}
+                label={mapView === 'risk' ? 'High-Risk Wards' : mapView === 'network' ? 'Identified Groups' : mapView === 'trends' ? 'Anomalies Detected' : mapView === 'alerts' ? 'Active Alerts' : mapView === 'drilldown' ? 'Wards Ranked' : 'Hotspot Clusters'}
                 value={mapView === 'risk'
                   ? (riskScores?.wards?.filter(w => w.risk_score >= 50).length?.toString() ?? '—')
+                  : mapView === 'drilldown'
+                  ? (districtDrilldown?.ward_rankings?.length?.toString() ?? '—')
                   : mapView === 'network'
                   ? (network?.summary?.n_communities?.toLocaleString() ?? '—')
+                  : mapView === 'trends'
+                  ? (trends?.anomalies?.length?.toString() ?? '—')
+                  : mapView === 'alerts'
+                  ? (alertsData?.summary?.total?.toString() ?? '—')
                   : (hotspots?.n_clusters?.toLocaleString() ?? '—')}
                 color="from-accent-rose/20 to-accent-rose/5" borderColor="border-rose-500/20"
               />
@@ -373,6 +665,40 @@ function App() {
                 >
                   Network View
                 </button>
+                <button
+                  onClick={() => setMapView('trends')}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
+                    mapView === 'trends'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  Trends &amp; Anomalies
+                </button>
+                <button
+                  onClick={() => setMapView('alerts')}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
+                    mapView === 'alerts'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  Intelligence Alerts
+                </button>
+                <button
+                  onClick={() => setMapView('brief')}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${mapView === 'brief' ? 'bg-primary-600 text-white' : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'}`}
+                >Intelligence Brief</button>
+                <button
+                  onClick={() => setMapView('drilldown')}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
+                    mapView === 'drilldown'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  District Intelligence
+                </button>
               </div>
 
               {/* District Filter (always visible) */}
@@ -402,6 +728,19 @@ function App() {
                 </select>
               </div>
 
+              {/* Ward scope — set by alert navigation or drilling into a ward */}
+              {selectedWard && (
+                <button
+                  type="button"
+                  onClick={clearWard}
+                  className="flex items-center gap-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 hover:bg-primary-500/20 transition-colors"
+                  title="Clear ward filter"
+                >
+                  Ward: {selectedWard.name}
+                  <span aria-hidden="true">✕</span>
+                </button>
+              )}
+
               {/* Date range and refresh controls */}
               {
                 <>
@@ -415,12 +754,24 @@ function App() {
                     <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                       className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none" />
                   </div>
-                  <button onClick={() => { fetchHotspots(); fetchEscalation(); fetchNetwork(); fetchRiskScores(); }} disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading}
+                  <button onClick={() => {
+                    fetchHotspots(); fetchEscalation(); fetchNetwork(); fetchRiskScores(); fetchPredictions();
+                    if (mapView === 'trends') fetchTrends();
+                    if (mapView === 'alerts') fetchAlerts();
+                    if (mapView === 'drilldown') { if (selectedWard) fetchWardDrilldown(); else fetchDistrictDrilldown(); }
+                  }} disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
                     className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    {hotspotsLoading || escalationLoading || networkLoading || riskLoading ? 'Computing...' : 'Update'}
+                    {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
                   </button>
                 </>
               }
+
+              {/* Prediction horizon selector — only meaningful in Risk Score View */}
+              {mapView === 'risk' && (
+                <div className="border-l border-white/10 pl-4">
+                  <HorizonSelector value={horizonDays} onChange={setHorizonDays} />
+                </div>
+              )}
 
               {/* Risk score info tooltip */}
               {mapView === 'risk' && (
@@ -429,8 +780,9 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>
-                    Risk Score (0-100) predicts how likely a ward is to see elevated crime based on incident history,
-                    offender presence, socio-economic factors, and escalation trends. Click a ward for details.
+                    Descriptive Risk Score (0-100) reflects current incident history, offender presence,
+                    socio-economic factors, and escalation trends. Predictive Risk below forecasts the next
+                    {' '}{horizonDays} days from historical patterns. Click a ward for details.
                   </span>
                 </div>
               )}
@@ -538,6 +890,7 @@ function App() {
                         <span className="text-slate-600"> &middot; </span>
                         Density: <span className="font-semibold text-sky-300">{formatMetric(dInfo.population_density, 0)}/km²</span>
                       </p>
+                      <p className="text-[10px] text-slate-500 italic mt-1">Contextual model features; their contribution appears in ward explanations. Correlation does not imply causation.</p>
                     </div>
                   </div>
                 </div>
@@ -545,29 +898,80 @@ function App() {
             })()}
 
             {/* ── Map + Side Panel (with view transition) ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
-              {/* Map/Graph takes 2/3 */}
-              <div className="lg:col-span-2 h-[560px] sm:h-[600px] lg:h-full view-transition">
-                {mapView === 'hotspots'
-                  ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
-                  : mapView === 'risk'
-                  ? <RiskScoreMap riskScores={riskScores} loading={riskLoading} />
-                  : <NetworkGraph
-                    network={network}
-                    loading={networkLoading}
-                    selectedNodeId={selectedNodeId}
-                    onNodeSelect={setSelectedNodeId}
-                    dateFrom={dateFrom}
-                    dateTo={dateTo}
-                  />
-                }
+            {mapView === 'brief' ? (
+              <IntelligenceBrief brief={brief} loading={briefLoading} error={briefError} onRefresh={fetchBrief} onNavigate={(action, item) => {
+                if (action === 'view_ward') { selectWard(item.ward_id, item.ward_name, item.district || selectedDistrict); return; }
+                const target = { view_trend: 'trends', view_risk: 'risk', view_alerts: 'alerts', view_hotspots: 'hotspots', view_network: 'network' }[action];
+                if (target) goToView(target);
+              }} />
+            ) : mapView === 'trends' ? (
+              <div className="view-transition">
+                <TrendsPanel
+                  trends={trends}
+                  loading={trendsLoading}
+                  granularity={trendGranularity}
+                  onGranularityChange={setTrendGranularity}
+                />
               </div>
+            ) : mapView === 'alerts' ? (
+              <div className="view-transition">
+                <AlertsPanel
+                  alertsData={alertsData}
+                  loading={alertsLoading}
+                  granularity={trendGranularity}
+                  onGranularityChange={setTrendGranularity}
+                  severityFilter={alertSeverityFilter}
+                  onSeverityFilterChange={setAlertSeverityFilter}
+                  statusFilter={alertStatusFilter}
+                  onStatusFilterChange={setAlertStatusFilter}
+                  onStatusChange={handleAlertStatusChange}
+                  onNavigate={handleAlertNavigate}
+                  onSelectWard={selectWard}
+                />
+              </div>
+            ) : mapView === 'drilldown' ? (
+              <div className="view-transition">
+                <DrilldownPanel
+                  districtsList={districtsList}
+                  selectedDistrict={selectedDistrict}
+                  selectedWard={selectedWard}
+                  onSelectDistrict={setSelectedDistrict}
+                  onSelectWard={selectWard}
+                  onClearWard={clearWard}
+                  onClearToKarnataka={clearToKarnataka}
+                  districtData={districtDrilldown}
+                  districtLoading={districtDrilldownLoading}
+                  wardData={wardDrilldown}
+                  wardLoading={wardDrilldownLoading}
+                  horizonDays={horizonDays}
+                  onGoToView={goToView}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+                {/* Map/Graph takes 2/3 */}
+                <div className="lg:col-span-2 h-[560px] sm:h-[600px] lg:h-full view-transition">
+                  {mapView === 'hotspots'
+                    ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
+                    : mapView === 'risk'
+                    ? <RiskScoreMap riskScores={riskScores} loading={riskLoading} predictionsByWard={predictionsByWard} />
+                    : <NetworkGraph
+                      network={network}
+                      loading={networkLoading}
+                      selectedNodeId={selectedNodeId}
+                      onNodeSelect={setSelectedNodeId}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                    />
+                  }
+                </div>
 
-              {/* Side panel takes 1/3 — consistent padding/rounding */}
-              <div className="h-[460px] sm:h-[520px] lg:h-full overflow-hidden glass-card p-4 sm:p-5 view-transition">
-                {sidePanel}
+                {/* Side panel takes 1/3 — consistent padding/rounding */}
+                <div className="h-[460px] sm:h-[520px] lg:h-full overflow-hidden glass-card p-4 sm:p-5 view-transition">
+                  {sidePanel}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Date Range Info ── */}
             {health.date_range && (
@@ -592,16 +996,28 @@ function App() {
         network={network}
         mapView={mapView}
         selectedDistrict={selectedDistrict}
+        selectedWard={selectedWard}
         selectedCrimeType={selectedCrimeType}
         dateFrom={dateFrom}
         dateTo={dateTo}
+        horizonDays={horizonDays}
+        trendGranularity={trendGranularity}
+        onNavigate={(action, item) => {
+          if (action === 'view_ward' && item?.ward_id != null) { selectWard(item.ward_id, item.ward_name || item.name, item.district || selectedDistrict); return; }
+          const target = { view_brief: 'brief', view_district: 'drilldown', view_trend: 'trends', view_risk: 'risk', view_alerts: 'alerts', view_hotspots: 'hotspots', view_network: 'network' }[action];
+          if (target) setMapView(target);
+        }}
       />
     </div>
   );
 }
 
 // ── Risk Rankings side panel (shown when Risk Score View is active) ──
-function RiskRankings({ riskScores, loading }) {
+// Shows two distinct things per the Descriptive vs Predictive Risk split:
+// the existing descriptive risk_scoring.py ranking (current-window index),
+// and — from the new prediction.py pipeline — a Model Performance summary
+// plus a per-ward Predictive Risk block sourced from `predictionsByWard`.
+function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance, predictionsLoading, highlightWardId, onSelectWard }) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -615,7 +1031,12 @@ function RiskRankings({ riskScores, loading }) {
 
   if (!riskScores?.wards) return <div className="text-slate-500 text-sm text-center">No data</div>;
 
-  const wards = riskScores.wards;
+  // Alert-driven navigation focuses the list on a single ward so its
+  // Predictive Risk block is immediately visible instead of buried in a
+  // 100+ ward ranking. Clear the "Ward: X" chip to return to the full list.
+  const wards = highlightWardId
+    ? riskScores.wards.filter((w) => w.ward_id === highlightWardId)
+    : riskScores.wards;
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -626,13 +1047,15 @@ function RiskRankings({ riskScores, loading }) {
             Risk Rankings
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Ward-level predictive risk scores (0-100)
+            Descriptive risk scores (0-100) for the current window
           </p>
         </div>
         <div className="badge bg-amber-500/20 text-amber-300 border border-amber-500/30">
           {wards.filter(w => w.risk_score >= 50).length} high-risk
         </div>
       </div>
+
+      {!predictionsLoading && <ModelPerformanceCard modelPerformance={modelPerformance} />}
 
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
         {wards.length === 0 ? (
@@ -641,19 +1064,20 @@ function RiskRankings({ riskScores, loading }) {
           </div>
         ) : (
           wards.map((ward) => (
-            <RiskWardCard key={ward.ward_id} ward={ward} />
+            <RiskWardCard key={ward.ward_id} ward={ward} prediction={predictionsByWard?.get(ward.ward_id)} onSelectWard={onSelectWard} />
           ))
         )}
       </div>
 
-      <div className="text-xs text-slate-600 border-t border-white/5 pt-2">
-        Powered by XGBoost + SHAP explainability
+      <div className="text-xs text-slate-600 border-t border-white/5 pt-2 space-y-1">
+        <p>Descriptive: XGBoost + SHAP explainability · Predictive: temporal ML forecast</p>
+        <p className="italic text-slate-600">{PREDICTION_DISCLAIMER}</p>
       </div>
     </div>
   );
 }
 
-function RiskWardCard({ ward }) {
+function RiskWardCard({ ward, prediction, onSelectWard }) {
   const scoreColor = ward.risk_score >= 75 ? 'text-red-400'
     : ward.risk_score >= 50 ? 'text-orange-400'
     : ward.risk_score >= 25 ? 'text-yellow-400'
@@ -673,7 +1097,18 @@ function RiskWardCard({ ward }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-white truncate">{ward.ward_name}</p>
+            {onSelectWard ? (
+              <button
+                type="button"
+                onClick={() => onSelectWard(ward.ward_id, ward.ward_name, ward.district)}
+                className="text-sm font-semibold text-white truncate hover:text-primary-300 hover:underline transition-colors"
+                title="Open Ward Intelligence Drilldown"
+              >
+                {ward.ward_name}
+              </button>
+            ) : (
+              <p className="text-sm font-semibold text-white truncate">{ward.ward_name}</p>
+            )}
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
               ward.risk_score >= 75 ? 'bg-red-500/20 text-red-300'
               : ward.risk_score >= 50 ? 'bg-orange-500/20 text-orange-300'
@@ -707,6 +1142,8 @@ function RiskWardCard({ ward }) {
           ))}
         </div>
       )}
+
+      <PredictiveRiskBlock prediction={prediction} compact />
     </div>
   );
 }
@@ -728,10 +1165,11 @@ function StatCard({ icon, label, value, color, borderColor }) {
 }
 
 const AI_SUGGESTIONS = [
-  "Explain today's hotspots",
+  "What needs attention?",
   'Why is this ward high risk?',
-  'Summarize the offender network',
-  'Recommend patrol deployment',
+  'What changed recently?',
+  'Show critical alerts',
+  'Summarize offender activity',
 ];
 
 function formatChatTime(ts) {
@@ -757,9 +1195,13 @@ function AiAssistantWidget({
   network,
   mapView,
   selectedDistrict,
+  selectedWard,
   selectedCrimeType,
   dateFrom,
   dateTo,
+  horizonDays,
+  trendGranularity,
+  onNavigate,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -778,8 +1220,12 @@ function AiAssistantWidget({
     network,
     mapView,
     selectedDistrict,
+    selectedWard,
+    selectedCrimeType,
     dateFrom,
     dateTo,
+    prediction_horizon: horizonDays,
+    granularity: trendGranularity,
   };
 
   const hasConversation = messages.length > 0;
@@ -805,7 +1251,7 @@ function AiAssistantWidget({
   };
 
   const handleSummary = () => {
-    addAssistantMessage(buildDashboardSummary(context));
+    askQuestion('Summarize the current intelligence brief');
   };
 
   // Shared ask flow — used by the input and the suggestion chips. The API
@@ -820,7 +1266,7 @@ function AiAssistantWidget({
     setAiLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/ai-chat`, {
+      const response = await fetch(`${API_URL}/api/copilot`, {
         method: 'POST',
         // text/plain keeps this a CORS "simple request" so the browser skips
         // the preflight. The Catalyst gateway answers OPTIONS itself without
@@ -828,15 +1274,16 @@ function AiAssistantWidget({
         // blocked. The body is still JSON; the backend parses it directly.
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: JSON.stringify({
-          question: trimmed,
-          dashboard_context: buildAssistantContext(context),
+          message: trimmed,
+          context,
+          history: messages.slice(-8).map((m) => ({ role: m.role, content: m.text })),
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      addAssistantMessage(data.answer || answerDashboardQuestion(trimmed, context));
+      setMessages((prev) => [...prev, { role: 'assistant', text: data.answer || 'No grounded answer was available.', evidence: data.evidence || [], actions: data.actions || [], sources: data.sources || [], ts: Date.now() }]);
     } catch {
-      addAssistantMessage(answerDashboardQuestion(trimmed, context));
+      addAssistantMessage('The Intelligence Copilot is temporarily unavailable. Please try again after the backend responds.');
     } finally {
       setAiLoading(false);
     }
@@ -892,9 +1339,9 @@ function AiAssistantWidget({
                 🤖
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-bold text-white leading-tight">Crime Intelligence Assistant</h2>
+                <h2 className="text-sm font-bold text-white leading-tight">Intelligence Copilot</h2>
                 <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  Analyze hotspots, risks, offender networks and answer questions about the current dashboard.
+                  Evidence-grounded answers from the current analytical scope.
                 </p>
               </div>
             </div>
@@ -930,8 +1377,8 @@ function AiAssistantWidget({
               <div className="ai-empty space-y-3.5">
                 {/* Friendly introduction */}
                 <p className="text-[12.5px] leading-relaxed text-slate-300">
-                  Hi — I'm your Crime Intelligence Assistant. Ask me about hotspot activity, ward risk,
-                  offender networks or patrol priorities for the current dashboard view.
+                  Hi — I’m your Intelligence Copilot. Ask about risk, trends, alerts, hotspots, incidents,
+                  offender networks, or the current intelligence brief.
                 </p>
 
                 {/* Current context */}
@@ -940,6 +1387,7 @@ function AiAssistantWidget({
                   <div className="flex flex-wrap gap-1.5">
                     <ContextChip label="View" value={viewLabel(mapView)} />
                     <ContextChip label="District" value={selectedDistrict || 'All Districts'} />
+                    {selectedWard && <ContextChip label="Ward" value={selectedWard.name} />}
                     <ContextChip label="Crime Type" value={selectedCrimeType || 'All Types'} />
                     <ContextChip label="Date" value={dateRangeLabel} />
                   </div>
@@ -988,6 +1436,14 @@ function AiAssistantWidget({
                       >
                         {message.text}
                       </div>
+                      {message.role === 'assistant' && message.evidence?.length > 0 && (
+                        <div className="mt-1.5 max-w-[92%] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Evidence</p>
+                          {message.evidence.map((item, i) => <p key={i} className="text-[11px] text-slate-300">• {item.label}: <span className="text-slate-100">{item.value}</span></p>)}
+                          {message.sources?.length > 0 && <p className="text-[10px] text-slate-600 mt-1">Based on: {message.sources.join(' · ')}</p>}
+                          {message.actions?.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{message.actions.map((item, i) => <button key={i} type="button" onClick={() => onNavigate?.(item.action, item)} className="rounded-md border border-primary-500/30 bg-primary-500/10 px-2 py-1 text-[10px] text-primary-200 hover:bg-primary-500/20">{item.label}</button>)}</div>}
+                        </div>
+                      )}
                       {message.ts && (
                         <span className="mt-1 px-1 text-[9px] text-slate-600">{formatChatTime(message.ts)}</span>
                       )}
@@ -1039,10 +1495,10 @@ function AiAssistantWidget({
         type="button"
         onClick={togglePanel}
         className="ai-assistant-fab"
-        aria-label="Ask AI assistant"
+        aria-label="Open Intelligence Copilot"
       >
         <span aria-hidden="true" className="text-base leading-none">🤖</span>
-        <span>{isOpen ? 'Close' : 'Ask AI'}</span>
+        <span>{isOpen ? 'Close' : 'Copilot'}</span>
       </button>
     </div>
   );
@@ -1179,6 +1635,10 @@ function answerDashboardQuestion(question, context) {
 function viewLabel(mapView) {
   if (mapView === 'risk') return 'Risk Score View';
   if (mapView === 'network') return 'Network View';
+  if (mapView === 'trends') return 'Trends & Anomalies';
+  if (mapView === 'alerts') return 'Intelligence Alerts';
+  if (mapView === 'drilldown') return 'District Intelligence';
+  if (mapView === 'brief') return 'Intelligence Brief';
   return 'Hotspot View';
 }
 

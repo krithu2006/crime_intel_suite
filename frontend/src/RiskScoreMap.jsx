@@ -36,7 +36,7 @@ function riskGradient(score) {
   return '#22c55e';
 }
 
-export default function RiskScoreMap({ riskScores, loading }) {
+export default function RiskScoreMap({ riskScores, loading, predictionsByWard }) {
   const [mapStyle, setMapStyle] = useState('map');
   const center = [14.5, 76.2];
 
@@ -103,7 +103,7 @@ export default function RiskScoreMap({ riskScores, loading }) {
               }}
             >
               <Popup maxWidth={320} minWidth={280}>
-                <RiskPopup ward={ward} />
+                <RiskPopup ward={ward} prediction={predictionsByWard?.get(ward.ward_id)} />
               </Popup>
             </CircleMarker>
           );
@@ -153,7 +153,7 @@ export default function RiskScoreMap({ riskScores, loading }) {
 }
 
 /** Popup card shown when clicking a ward on the risk score map */
-function RiskPopup({ ward }) {
+function RiskPopup({ ward, prediction }) {
   const scoreColor = riskGradient(ward.risk_score);
 
   return (
@@ -235,6 +235,63 @@ function RiskPopup({ ward }) {
           ))}
         </div>
       )}
+
+      <PredictionSection prediction={prediction} />
+    </div>
+  );
+}
+
+/** Predictive Risk section of the popup — matches the popup's light inline-style theme. */
+function PredictionSection({ prediction }) {
+  const headingStyle = {
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: '#64748b',
+    margin: '10px 0 4px 0',
+    borderTop: '1px solid #e2e8f0',
+    paddingTop: 8,
+  };
+
+  if (!prediction || prediction.insufficient_data) {
+    return (
+      <div>
+        <p style={headingStyle}>Predictive Risk</p>
+        <p style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>
+          {prediction?.message || 'Insufficient historical data for reliable prediction.'}
+        </p>
+      </div>
+    );
+  }
+
+  const scoreColor = riskGradient(prediction.risk_score);
+  const trendArrow = prediction.trend === 'rising' ? '↑ Rising' : prediction.trend === 'falling' ? '↓ Falling' : '→ Stable';
+
+  return (
+    <div>
+      <p style={headingStyle}>Predictive Risk · Next {prediction.prediction_horizon_days}d</p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span style={{ fontWeight: 800, fontSize: 22, color: scoreColor }}>{Math.round(prediction.risk_score)}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: scoreColor }}>
+          {prediction.risk_level} risk
+        </span>
+      </div>
+      <p style={{ fontSize: 11, color: '#475569', margin: '0 0 2px 0' }}>
+        Expected incidents: <strong>{prediction.predicted_incidents?.toFixed(1)}</strong>
+        {'  ·  '}Confidence: <strong>{Math.round(prediction.confidence * 100)}%</strong>
+        {'  ·  '}{trendArrow}
+      </p>
+      {prediction.top_factors?.length > 0 && (
+        <ul style={{ margin: '4px 0 0 0', paddingLeft: 14, fontSize: 10.5, color: '#64748b' }}>
+          {prediction.top_factors.slice(0, 3).map((f, i) => (
+            <li key={i}>{f.label}</li>
+          ))}
+        </ul>
+      )}
+      <p style={{ fontSize: 9.5, color: '#94a3b8', fontStyle: 'italic', margin: '6px 0 0 0' }}>
+        Decision-support prediction based on historical patterns. Requires analyst validation.
+      </p>
     </div>
   );
 }

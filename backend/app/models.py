@@ -119,3 +119,26 @@ class Accused(Base):
             "gender": self.gender,
             "incident_count": len(self.incidents),
         }
+
+# ---------- Alert workflow status (Module 6 — Intelligence Alert Center) ----------
+# Alerts themselves are computed on the fly from Phase 2/1 analytics (never
+# stored — they'd go stale as new incidents arrive). Only the analyst's
+# workflow state is persisted here, keyed by the alert's deterministic ID, so
+# a status survives a refresh without duplicating any analytics data.
+class AlertStatus(Base):
+    __tablename__ = "alert_status"
+
+    alert_id = Column(String(200), primary_key=True)
+    status = Column(String(20), nullable=False, default="NEW")
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "alert_id": self.alert_id,
+            "status": self.status,
+            "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

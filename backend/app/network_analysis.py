@@ -15,7 +15,7 @@ import networkx as nx
 from collections import defaultdict
 from itertools import combinations
 from sqlalchemy.orm import Session
-from sqlalchemy import select, text
+from sqlalchemy import select, text, func
 from datetime import datetime
 
 from .models import Incident, Accused, Ward, incident_accused
@@ -440,8 +440,11 @@ def get_individual(
 
     max_ts = max((inc.timestamp for inc in incs if inc.timestamp), default=None)
     if max_ts:
-        # Base recency off Dec 31 2025 since seed data is in 2025
-        anchor_date = datetime(2025, 12, 31)
+        # Recency is scored against the latest timestamp actually present in
+        # the dataset (not a hard-coded date) so this stays correct whenever
+        # new data is imported, regardless of what year it falls in.
+        latest_overall = db.query(func.max(Incident.timestamp)).scalar() or max_ts
+        anchor_date = max(latest_overall, max_ts)
         days_ago = max(0, (anchor_date - max_ts).days)
         rec_score = max(0.0, 100.0 - (days_ago / 3.65))
     else:

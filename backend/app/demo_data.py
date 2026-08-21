@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -71,7 +72,10 @@ def _bounded_gauss(center: float, sigma: float, limit: float) -> float:
 
 
 def generate_demo_csv(count: int = 2400) -> int:
-    """Write a new randomized CSV for each local demo startup."""
+    """Write a reproducible synthetic CSV for each local demo startup."""
+    # Stable demo data makes judging and regression checks repeatable while
+    # keeping DATA_MODE=csv available for user-supplied data.
+    random.seed(int(os.getenv("DEMO_SEED", "20260821")))
     CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now().replace(microsecond=0)
     districts = list(DISTRICT_CENTERS.items())

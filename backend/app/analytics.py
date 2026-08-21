@@ -187,15 +187,23 @@ def detect_hotspots(
         # Dominant crime type
         crime_counts = {}
         district_counts = {}
+        ward_counts = {}
         severities = []
         for inc in cluster_incidents:
             crime_counts[inc.crime_type] = crime_counts.get(inc.crime_type, 0) + 1
             district_counts[inc.district] = district_counts.get(inc.district, 0) + 1
+            ward_counts[inc.ward_id] = ward_counts.get(inc.ward_id, 0) + 1
             severities.append(inc.severity)
         dominant = max(crime_counts, key=crime_counts.get)
         majority_district = sorted(
             district_counts.items(),
             key=lambda item: (-item[1], item[0]),
+        )[0][0]
+        # Majority ward — lets the district/ward drilldown (Module 7) attribute
+        # a cluster to a ward for ranking/counting without a new algorithm.
+        majority_ward_id = sorted(
+            ward_counts.items(),
+            key=lambda item: (-item[1], item[0] if item[0] is not None else -1),
         )[0][0]
 
         # Point details (limit to avoid huge payloads — send up to 200 per cluster)
@@ -208,6 +216,7 @@ def detect_hotspots(
             "radius_m": radius_m,
             "dominant_crime_type": dominant,
             "district": majority_district,
+            "ward_id": majority_ward_id,
             "avg_severity": round(float(np.mean(severities)), 2),
             "crime_breakdown": crime_counts,
             "points": cluster_points,
