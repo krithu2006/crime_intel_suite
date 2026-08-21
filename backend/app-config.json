@@ -1,0 +1,11 @@
+{
+	"command": "python3 run.py",
+	"build_path": "./",
+	"stack": "python_3_11",
+	"env_variables": {},
+	"memory": 1024,
+	"scripts": {
+		"predeploy": "python -m pip install -r ./requirements.txt -t ./ --upgrade --platform manylinux2014_x86_64 --python-version 3.11 --only-binary=:all:",
+		"preserve": "python -m pip install -r ./requirements.txt -t ./ --upgrade --platform manylinux2014_x86_64 --python-version 3.11 --only-binary=:all:"
+	}
+}

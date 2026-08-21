@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+
+backend/venv/
+backend/.env
+.env
+
+# Catalyst AppSail vendored dependencies: the predeploy hook pip-installs
+# requirements.txt into backend/ with `-t ./` so they ship in the bundle.
+# Build artifacts — regenerated on every `catalyst deploy appsail`.
+backend/*/
+!backend/app/
+backend/*.dist-info/
+backend/*.so
+backend/six.py
+backend/threadpoolctl.py
+backend/typing_extensions.py
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Editor/OS
+.vscode/
+.DS_Store

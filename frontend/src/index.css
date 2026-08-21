@@ -1,0 +1,373 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base Resets ── */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #020617;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+/* ── Utility Classes ── */
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-primary-400/30 hover:shadow-glow hover:bg-white/[0.08];
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-400 via-accent-cyan to-accent-emerald bg-clip-text text-transparent;
+  }
+
+  .stat-number {
+    @apply text-4xl font-bold tracking-tight;
+  }
+
+  .stat-label {
+    @apply text-sm font-medium text-slate-400 uppercase tracking-wider;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-severity-high {
+    @apply badge bg-rose-500/20 text-rose-300 border border-rose-500/30;
+  }
+
+  .badge-severity-med {
+    @apply badge bg-amber-500/20 text-amber-300 border border-amber-500/30;
+  }
+
+  .badge-severity-low {
+    @apply badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+  }
+}
+
+/* ── Animations ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* ── Google Maps-inspired Leaflet chrome ── */
+.google-map-shell {
+  border-radius: 8px;
+  background: #e5e3df;
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.25);
+}
+
+.map-tiles-google-like {
+  filter: saturate(0.88) contrast(0.98) brightness(1.04);
+}
+
+.google-map-card,
+.google-map-search,
+.google-map-layers {
+  color: #1f2937;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(60, 64, 67, 0.28);
+}
+
+.google-map-search {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.google-map-layers {
+  display: flex;
+  overflow: hidden;
+}
+
+.google-map-layers button {
+  min-width: 78px;
+  padding: 9px 13px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.google-map-layers button + button {
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.google-map-layers button:hover,
+.google-map-layers .is-active {
+  color: #1a73e8;
+  background: #eef4ff;
+}
+
+.google-map-shell .leaflet-control-zoom {
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(60, 64, 67, 0.28);
+}
+
+.google-map-shell .leaflet-control-zoom a {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  color: #3c4043;
+  font-size: 22px;
+  line-height: 40px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.google-map-shell .leaflet-control-zoom a:hover {
+  color: #1a73e8;
+  background: #f8fafc;
+}
+
+.google-map-shell .leaflet-control-scale-line {
+  border-color: #3c4043;
+  color: #3c4043;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.google-map-shell .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+/* ── Floating AI assistant ── */
+.ai-assistant {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ai-assistant-button {
+  display: flex;
+  width: 58px;
+  height: 58px;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4f46e5, #0891b2);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  box-shadow: 0 16px 36px rgba(8, 145, 178, 0.32), 0 0 0 6px rgba(79, 70, 229, 0.13);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ai-assistant-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 42px rgba(8, 145, 178, 0.38), 0 0 0 7px rgba(79, 70, 229, 0.16);
+}
+
+/* Labelled "Ask AI" action button (pill form of the assistant trigger) */
+.ai-assistant-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #4f46e5, #0891b2);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  box-shadow: 0 16px 36px rgba(8, 145, 178, 0.32), 0 0 0 5px rgba(79, 70, 229, 0.12);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ai-assistant-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 42px rgba(8, 145, 178, 0.38), 0 0 0 6px rgba(79, 70, 229, 0.16);
+}
+
+/* ── AI Analysis Panel — matches the dashboard glass-card language ── */
+.ai-analysis-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 28px));
+  max-height: min(640px, calc(100vh - 120px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px; /* matches rounded-2xl cards */
+  background: rgba(6, 11, 25, 0.9);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(20px);
+  animation: aiPanelIn 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-analysis-messages {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 160px;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+@keyframes aiPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ai-analysis-panel--closing {
+  animation: aiPanelOut 0.17s ease-in forwards;
+}
+
+@keyframes aiPanelOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Empty state + individual messages fade/slide in subtly */
+.ai-empty {
+  animation: aiMsgIn 0.28s ease-out;
+}
+
+.ai-msg-in {
+  animation: aiMsgIn 0.22s ease-out;
+}
+
+@keyframes aiMsgIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Auto-sizing chat input (single line that grows with Shift+Enter) */
+.ai-analysis-input {
+  max-height: 112px;
+  min-height: 38px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+/* Typing indicator */
+.ai-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.75);
+  animation: aiTyping 1.2s infinite ease-in-out;
+}
+
+.ai-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.ai-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes aiTyping {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .ai-assistant {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .ai-assistant-button {
+    width: 54px;
+    height: 54px;
+  }
+}
+
+/* ── Smooth fade transition when switching views ── */
+.view-transition {
+  animation: viewFadeIn 0.3s ease-out;
+}
+
+@keyframes viewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Ward/risk cards — consistent hover feedback ── */
+.ward-card-hover {
+  transition: all 0.2s ease;
+}
+.ward-card-hover:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateX(2px);
+}
