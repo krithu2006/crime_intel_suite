@@ -40,7 +40,7 @@ export default function RisingZones({ hotspots, loading }) {
   );
 
   return (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="rising-zones flex flex-col gap-4 h-full">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -112,7 +112,7 @@ function ClusterCard({ cluster }) {
     : "bg-white/[0.02] border-white/5";
 
   return (
-    <div className={`ward-card-hover rounded-xl border p-3 ${cardClass}`}>
+    <div className={`hotspot-rank-card hotspot-rank-card--${cluster.severity_level.toLowerCase()} ward-card-hover rounded-xl border p-3 ${cardClass}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

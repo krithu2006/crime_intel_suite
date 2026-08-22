@@ -632,9 +632,9 @@ function App() {
               ))}
             </div>
 
-            <div className="dashboard-controls glass-card px-5 py-3 flex flex-wrap items-center gap-4">
+            <div className="dashboard-controls glass-card px-5 py-4 flex flex-wrap items-center gap-4">
               {/* View Toggle */}
-              <div className="flex rounded-lg border border-white/10 overflow-hidden">
+              <div className="dashboard-nav flex rounded-lg border border-white/10 overflow-hidden">
                 <button
                   onClick={() => setMapView('hotspots')}
                   className={`px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -843,7 +843,7 @@ function App() {
                 : 'Stable';
 
               return (
-                <div className="glass-card p-4 rounded-xl mb-6 bg-primary-900/20 border-primary-500/20 flex flex-wrap items-center justify-between gap-4 view-transition">
+                <div className="district-summary-strip glass-card p-5 rounded-xl mb-6 bg-primary-900/20 border-primary-500/20 flex flex-wrap items-center justify-between gap-5 view-transition">
                   <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
                       <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -881,7 +881,7 @@ function App() {
                       <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Crime Trend</p>
                       <p className={`text-lg font-bold ${risingCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{crimeTrend}</p>
                     </div>
-                    <div className="border-l border-white/10 pl-6 hidden lg:block">
+                    <div className="socio-economic-inset border-l border-white/10 pl-6 hidden lg:block">
                       <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Socio-Economic</p>
                       <p className="text-xs text-slate-300 mt-1 leading-5">
                         Unemployment: <span className="font-semibold text-amber-300">{formatMetric(dInfo.unemployment_rate)}%</span>
@@ -948,9 +948,9 @@ function App() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+              <div className="analysis-workspace grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
                 {/* Map/Graph takes 2/3 */}
-                <div className="lg:col-span-2 h-[560px] sm:h-[600px] lg:h-full view-transition">
+                <div className="map-stage lg:col-span-2 h-[560px] sm:h-[600px] lg:h-full view-transition">
                   {mapView === 'hotspots'
                     ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
                     : mapView === 'risk'
@@ -967,7 +967,7 @@ function App() {
                 </div>
 
                 {/* Side panel takes 1/3 — consistent padding/rounding */}
-                <div className="h-[460px] sm:h-[520px] lg:h-full overflow-hidden glass-card p-4 sm:p-5 view-transition">
+                <div className="intelligence-sidebar h-[460px] sm:h-[520px] lg:h-full overflow-hidden glass-card p-4 sm:p-5 view-transition">
                   {sidePanel}
                 </div>
               </div>
@@ -1152,7 +1152,7 @@ function StatCard({ icon, label, value, color, borderColor }) {
   return (
     <div className={`glass-card-hover p-4 ${borderColor} animate-slide-up`}>
       <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-xl`}>
+        <div className={`kpi-icon w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-xl`}>
           {icon}
         </div>
         <div>

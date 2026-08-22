@@ -64,7 +64,7 @@ export default function AlertsPanel({
   }, [alerts, sortBy]);
 
   return (
-    <div className="glass-card p-5 space-y-5">
+    <div className="alerts-panel glass-card p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -158,7 +158,7 @@ function AlertSummary({ summary }) {
     ['Investigating', summary.investigating, 'text-violet-300'],
   ];
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
+    <div className="alert-summary-grid grid grid-cols-3 sm:grid-cols-7 gap-3">
       {tiles.map(([label, value, color]) => (
         <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-center">
           <p className={`text-xl font-bold tabular-nums ${color}`}>{value ?? 0}</p>
@@ -188,7 +188,7 @@ function AlertCard({ alert, onStatusChange, onNavigate, onSelectWard }) {
   const where = [alert.district, alert.ward].filter(Boolean).join(' → ');
 
   return (
-    <div className={`rounded-xl border p-4 ${style.card}`}>
+    <div className={`alert-card alert-card--${alert.severity?.toLowerCase() || 'low'} rounded-xl border p-4 ${style.card}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

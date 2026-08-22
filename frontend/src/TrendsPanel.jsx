@@ -33,7 +33,7 @@ function formatDate(iso) {
 
 export default function TrendsPanel({ trends, loading, granularity, onGranularityChange }) {
   return (
-    <div className="glass-card p-5 space-y-5">
+    <div className="trends-panel glass-card p-5 space-y-5">
       {/* ── Header: granularity selector ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -109,7 +109,7 @@ function TrendSummary({ summary, sustained }) {
   if (!summary) return null;
   const t = trendMeta(summary.trend);
   return (
-    <div className="flex flex-wrap items-end gap-6">
+    <div className="trend-summary-strip flex flex-wrap items-end gap-6">
       <div>
         <p className="text-[10px] uppercase tracking-wide text-slate-500">Trend</p>
         <p className={`text-2xl font-bold ${t.color}`}>{t.icon} {t.label}</p>
@@ -169,7 +169,7 @@ function AnomalyCard({ anomaly }) {
   const style = SEVERITY_STYLE[anomaly.severity] || SEVERITY_STYLE.LOW;
   const isSpike = anomaly.direction === 'spike';
   return (
-    <div className={`rounded-xl border p-3 ${isSpike ? 'bg-rose-500/5 border-rose-500/20' : 'bg-white/[0.02] border-white/5'}`}>
+    <div className={`anomaly-card anomaly-card--${anomaly.severity?.toLowerCase() || 'low'} rounded-xl border p-3 ${isSpike ? 'bg-rose-500/5 border-rose-500/20' : 'bg-white/[0.02] border-white/5'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${style.badge}`}>
@@ -204,7 +204,7 @@ function TopEmergingTrends({ trends, granularity }) {
           </div>
         ) : (
           list.map((t, i) => (
-            <div key={i} className="rounded-xl border border-white/5 bg-white/[0.02] p-3 flex items-start gap-3">
+            <div key={i} className="emerging-trend-row rounded-xl border border-white/5 bg-white/[0.02] p-3 flex items-start gap-3">
               <span className="text-sm font-bold text-slate-500 w-4">{t.rank}.</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white truncate">{t.label}</p>
