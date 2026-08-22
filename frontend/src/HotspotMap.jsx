@@ -60,6 +60,22 @@ function FitMapToHotspots({ clusters, points }) {
   return null;
 }
 
+function KeepMapSized() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const refresh = () => map.invalidateSize({ pan: false });
+    const timer = window.setTimeout(refresh, 180);
+    const observer = new ResizeObserver(refresh);
+    observer.observe(container);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 function severityColor(level) {
   if (level === 'High') return '#ef4444';
   if (level === 'Medium') return '#f59e0b';
@@ -118,6 +134,7 @@ export default function HotspotMap({ hotspots, loading }) {
         style={{ height: '100%', width: '100%', background: '#e5e3df' }}
         zoomControl={false}
       >
+        <KeepMapSized />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url={mapStyle === 'satellite'

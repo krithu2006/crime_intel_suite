@@ -65,7 +65,7 @@ export default function AlertsPanel({
 
   return (
     <div className="alerts-panel glass-card p-5 space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="alerts-toolbar flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span aria-hidden="true">🚨</span> Intelligence Alerts
@@ -115,14 +115,14 @@ export default function AlertsPanel({
           <AlertSummary summary={alertsData.summary} />
 
           {sorted.length === 0 ? (
-            <div className="glass-card p-10 text-center">
+            <div className="alerts-list custom-scrollbar glass-card p-10 text-center">
               <p className="text-base font-semibold text-slate-300">No active intelligence alerts</p>
               <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
                 No significant anomalies or high-priority risk signals were detected for the selected scope.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="alerts-list custom-scrollbar space-y-3">
               {sorted.map((alert) => (
                 <AlertCard key={alert.id} alert={alert} onStatusChange={onStatusChange} onNavigate={onNavigate} onSelectWard={onSelectWard} />
               ))}

@@ -9,6 +9,8 @@ import TrendsPanel from './TrendsPanel.jsx';
 import AlertsPanel from './AlertsPanel.jsx';
 import DrilldownPanel from './DrilldownPanel.jsx';
 import IntelligenceBrief from './IntelligenceBrief.jsx';
+import FeatureModal from './FeatureModal.jsx';
+import SettingsPopover from './SettingsPopover.jsx';
 
 // AppSail suspends the backend instance when it is idle, so the first request
 // after a cold start can fail or hang for several seconds. The dashboard polls
@@ -16,6 +18,24 @@ import IntelligenceBrief from './IntelligenceBrief.jsx';
 const WAKE_MAX_ATTEMPTS = 40;   // ≈100s of cold-start headroom at WAKE_RETRY_MS
 const WAKE_RETRY_MS = 2500;
 const WAKE_TIMEOUT_MS = 8000;   // cap one attempt so a hung socket can't stall the loop
+
+const FEATURE_LABELS = {
+  hotspots: 'Hotspots',
+  risk: 'Predictive Risk',
+  network: 'Criminal Network',
+  trends: 'Trends & Anomalies',
+  alerts: 'Intelligence Alerts',
+  brief: 'Intelligence Brief',
+  drilldown: 'District Intelligence',
+};
+
+function getInitialTheme() {
+  try {
+    return localStorage.getItem('crime-intel-theme') === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 
 function formatMetric(value, decimals = 1) {
   const number = Number(value);
@@ -27,6 +47,8 @@ function formatMetric(value, decimals = 1) {
 }
 
 function App() {
+  const [theme, setTheme] = useState(getInitialTheme);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [health, setHealth] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +90,12 @@ function App() {
 
   // View toggle: 'hotspots', 'risk', 'network', 'trends', or 'alerts'
   const [mapView, setMapView] = useState('hotspots');
+  const [activeFeature, setActiveFeature] = useState(null);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('crime-intel-theme', theme); } catch { /* storage may be unavailable */ }
+  }, [theme]);
 
   // Date range
   const [dateFrom, setDateFrom] = useState('');
@@ -393,17 +421,24 @@ function App() {
 
   // Navigate from an alert into the relevant existing module, preserving
   // district/crime-type/ward scope so the analyst lands in the right context.
+  const openFeature = useCallback((view) => {
+    setMapView(view);
+    setActiveFeature(view);
+    setSettingsOpen(false);
+  }, []);
+  const closeFeature = useCallback(() => setActiveFeature(null), []);
+
   const handleAlertNavigate = useCallback((action, alert) => {
     setSelectedDistrict(alert.district || '');
     setSelectedCrimeType(alert.crime_type || '');
     setSelectedWard(alert.ward_id != null ? { id: alert.ward_id, name: alert.ward, district: alert.district } : null);
-    if (action === 'view_trend') setMapView('trends');
+    if (action === 'view_trend') openFeature('trends');
     else if (action === 'view_risk') {
-      setMapView('risk');
+      openFeature('risk');
       if (alert.prediction_horizon_days) setHorizonDays(alert.prediction_horizon_days);
-    } else if (action === 'view_hotspot') setMapView('hotspots');
-    else if (action === 'view_network') setMapView('network');
-  }, []);
+    } else if (action === 'view_hotspot') openFeature('hotspots');
+    else if (action === 'view_network') openFeature('network');
+  }, [openFeature]);
 
   // ── Module 7 — the ONE way any module selects a ward (district ward
   // table, risk card, hotspot popup, alert) so there's never more than one
@@ -412,8 +447,8 @@ function App() {
   const selectWard = useCallback((wardId, wardName, district) => {
     setSelectedDistrict(district || '');
     setSelectedWard({ id: wardId, name: wardName, district: district || '' });
-    setMapView('drilldown');
-  }, []);
+    openFeature('drilldown');
+  }, [openFeature]);
 
   const clearWard = useCallback(() => setSelectedWard(null), []);
   const clearToKarnataka = useCallback(() => {
@@ -433,9 +468,9 @@ function App() {
   // scope" — used by the drilldown's Trend/Risk/Alerts/Hotspot/Network quick
   // links (Phase 3's handleAlertNavigate is the same idea, scoped to an alert).
   const goToView = useCallback((view, options = {}) => {
-    setMapView(view);
+    openFeature(view);
     if (options.horizonDays) setHorizonDays(options.horizonDays);
-  }, []);
+  }, [openFeature]);
 
   const fetchBrief = useCallback(() => {
     if (!selectedDistrict && !selectedWard) { setBrief(null); return; }
@@ -503,8 +538,8 @@ function App() {
   return (
     <div className="app-shell min-h-screen flex flex-col">
       {/* ── Header ── */}
-      <header className="app-header border-b border-white/10 bg-surface-800/60 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 flex-wrap">
+      <header className="app-header border-b border-white/10 sticky top-0">
+        <div className="dashboard-container app-header__inner">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-cyan flex items-center justify-center shadow-glow flex-shrink-0">
               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,7 +555,7 @@ function App() {
             {!loading && !error && (
               <button
                 type="button"
-                onClick={() => setMapView('alerts')}
+                onClick={() => openFeature('alerts')}
                 className="relative flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 transition-colors hover:border-primary-400/40 hover:bg-primary-500/10 hover:text-white"
                 aria-label="Open Intelligence Alerts"
                 title="Intelligence Alerts"
@@ -533,6 +568,16 @@ function App() {
                 )}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="header-settings-button"
+              aria-label="Open settings"
+              title="Settings"
+            >
+              <span aria-hidden="true">⚙</span>
+              <span className="hidden lg:inline">Settings</span>
+            </button>
             {loading ? (
               <span className="badge bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                 <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
@@ -558,7 +603,7 @@ function App() {
       </header>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 max-w-[1600px] mx-auto px-6 py-6 w-full">
+      <main className="dashboard-container dashboard-main flex-1 w-full">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center gap-4">
@@ -632,74 +677,25 @@ function App() {
               ))}
             </div>
 
-            <div className="dashboard-controls glass-card px-5 py-4 flex flex-wrap items-center gap-4">
-              {/* View Toggle */}
-              <div className="dashboard-nav flex rounded-lg border border-white/10 overflow-hidden">
-                <button
-                  onClick={() => setMapView('hotspots')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    mapView === 'hotspots'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  Hotspot View
-                </button>
-                <button
-                  onClick={() => setMapView('risk')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    mapView === 'risk'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  Risk Score View
-                </button>
-                <button
-                  onClick={() => setMapView('network')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
-                    mapView === 'network'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  Network View
-                </button>
-                <button
-                  onClick={() => setMapView('trends')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
-                    mapView === 'trends'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  Trends &amp; Anomalies
-                </button>
-                <button
-                  onClick={() => setMapView('alerts')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
-                    mapView === 'alerts'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  Intelligence Alerts
-                </button>
-                <button
-                  onClick={() => setMapView('brief')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${mapView === 'brief' ? 'bg-primary-600 text-white' : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'}`}
-                >Intelligence Brief</button>
-                <button
-                  onClick={() => setMapView('drilldown')}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-white/10 ${
-                    mapView === 'drilldown'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-transparent text-slate-400 hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  District Intelligence
-                </button>
+            <div className="dashboard-controls glass-card">
+              <div className="dashboard-launcher-row">
+                <p className="dashboard-control-label">Intelligence workspaces</p>
+                <div className="feature-launcher-grid" aria-label="Open an intelligence feature">
+                {Object.entries(FEATURE_LABELS).map(([view, label]) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => openFeature(view)}
+                    className={`feature-launcher ${mapView === view ? 'feature-launcher--active' : ''}`}
+                  >
+                    <span className="feature-launcher__dot" aria-hidden="true" />
+                    {label}
+                  </button>
+                ))}
+                </div>
               </div>
+
+              <div className="dashboard-filter-row">
 
               {/* District Filter (always visible) */}
               <div className="flex items-center gap-2 border-l border-white/10 pl-4">
@@ -808,15 +804,62 @@ function App() {
                   >{label}</button>
                 ))}
               </div>
+              </div>
             </div>
 
+            {!activeFeature && (
+              <section className="intelligence-overview glass-card" aria-labelledby="overview-title">
+                <div className="intelligence-overview__intro">
+                  <p className="section-eyebrow">Intelligence overview</p>
+                  <h2 id="overview-title">Ready for focused analysis</h2>
+                  <p>
+                    Current scope: <strong>{selectedDistrict || 'Karnataka'}</strong>
+                    <span aria-hidden="true"> · </span>
+                    {selectedCrimeType || 'All Crime Types'}
+                    {selectedWard ? ` · ${selectedWard.name}` : ''}
+                  </p>
+                  <button type="button" className="overview-primary-action" onClick={() => openFeature('drilldown')}>
+                    Open District Intelligence <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+                <div className="overview-signals" aria-label="Quick signals">
+                  {[
+                    ['High-risk wards', riskScores?.wards?.filter((ward) => ward.risk_score >= 50).length ?? '—', 'signal-critical'],
+                    ['Active hotspots', hotspots?.n_clusters ?? '—', 'signal-info'],
+                    ['Average risk', riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'signal-predictive'],
+                    ['New alerts', newAlertCount, 'signal-warning'],
+                  ].map(([label, value, tone]) => (
+                    <div key={label} className={`overview-signal glass-interactive ${tone}`}>
+                      <p>{label}</p>
+                      <strong>{value}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="overview-quick-access">
+                  <p className="dashboard-control-label">Quick access</p>
+                  <div>
+                    {[
+                      ['risk', 'Predictive Risk'],
+                      ['trends', 'Trends'],
+                      ['alerts', 'Alerts'],
+                      ['hotspots', 'Hotspots'],
+                    ].map(([view, label]) => (
+                      <button key={view} type="button" onClick={() => openFeature(view)}>{label}<span aria-hidden="true">↗</span></button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeFeature && (
+              <FeatureModal title={FEATURE_LABELS[activeFeature]} onClose={closeFeature} variant={activeFeature}>
             {/* ── District Summary Card ──
                 All figures below come from `hotspots`, `riskScores`, and
                 `escalation` — the same three state objects the map, Rising
                 Zones panel, and top stats row consume, all fetched with the
                 same selectedDistrict/date/crime-type filters. Nothing here
                 is recomputed from a different dataset. */}
-            {selectedDistrict && districtsList.find(d => d.district === selectedDistrict) && (() => {
+            {activeFeature === 'drilldown' && selectedDistrict && districtsList.find(d => d.district === selectedDistrict) && (() => {
               const dInfo = districtsList.find(d => d.district === selectedDistrict);
               const dWards = riskScores?.wards || [];
               const highWards = dWards.filter(w => w.risk_score >= 50).length;
@@ -948,9 +991,9 @@ function App() {
                 />
               </div>
             ) : (
-              <div className="analysis-workspace grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+              <div className={`analysis-workspace feature-workspace feature-workspace--${mapView}`}>
                 {/* Map/Graph takes 2/3 */}
-                <div className="map-stage lg:col-span-2 h-[560px] sm:h-[600px] lg:h-full view-transition">
+                <div className="map-stage view-transition">
                   {mapView === 'hotspots'
                     ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
                     : mapView === 'risk'
@@ -967,10 +1010,12 @@ function App() {
                 </div>
 
                 {/* Side panel takes 1/3 — consistent padding/rounding */}
-                <div className="intelligence-sidebar h-[460px] sm:h-[520px] lg:h-full overflow-hidden glass-card p-4 sm:p-5 view-transition">
+                <div className="intelligence-sidebar glass-card p-4 sm:p-5 view-transition">
                   {sidePanel}
                 </div>
               </div>
+            )}
+              </FeatureModal>
             )}
 
             {/* ── Date Range Info ── */}
@@ -1005,9 +1050,16 @@ function App() {
         onNavigate={(action, item) => {
           if (action === 'view_ward' && item?.ward_id != null) { selectWard(item.ward_id, item.ward_name || item.name, item.district || selectedDistrict); return; }
           const target = { view_brief: 'brief', view_district: 'drilldown', view_trend: 'trends', view_risk: 'risk', view_alerts: 'alerts', view_hotspots: 'hotspots', view_network: 'network' }[action];
-          if (target) setMapView(target);
+          if (target) openFeature(target);
         }}
       />
+      {settingsOpen && (
+        <SettingsPopover
+          theme={theme}
+          onThemeChange={setTheme}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1323,15 +1375,25 @@ function AiAssistantWidget({
 
   // Keep drag state out of React state so the bubble follows the pointer with
   // no render lag. `dragMoved` prevents a drag-release from opening the panel.
-  const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, startX: 0, startY: 0 });
-  const [bubblePosition, setBubblePosition] = useState({ x: null, y: null });
+  const AI_POSITION_KEY = 'crime-intel-ai-position';
+  const AI_BALL_SIZE = 58;
+  const AI_EDGE_GUTTER = 20;
+  const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, startX: 0, startY: 0, pointerId: null, target: null });
+  const [bubblePosition, setBubblePosition] = useState(() => {
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(AI_POSITION_KEY)); } catch { /* use default */ }
+    const side = stored?.side === 'left' ? 'left' : 'right';
+    const y = Number.isFinite(stored?.y) ? stored.y : window.innerHeight - AI_BALL_SIZE - 28;
+    return {
+      x: side === 'left' ? AI_EDGE_GUTTER : window.innerWidth - AI_BALL_SIZE - AI_EDGE_GUTTER,
+      y: Math.max(AI_EDGE_GUTTER, Math.min(y, window.innerHeight - AI_BALL_SIZE - AI_EDGE_GUTTER)),
+    };
+  });
   const [isDragging, setIsDragging] = useState(false);
   const clampBubblePosition = (x, y) => {
-    const size = 68;
-    const gutter = 14;
     return {
-      x: Math.max(gutter, Math.min(x, window.innerWidth - size - gutter)),
-      y: Math.max(gutter, Math.min(y, window.innerHeight - size - gutter)),
+      x: Math.max(AI_EDGE_GUTTER, Math.min(x, window.innerWidth - AI_BALL_SIZE - AI_EDGE_GUTTER)),
+      y: Math.max(AI_EDGE_GUTTER, Math.min(y, window.innerHeight - AI_BALL_SIZE - AI_EDGE_GUTTER)),
     };
   };
   const handleBubblePointerDown = (event) => {
@@ -1343,8 +1405,11 @@ function AiAssistantWidget({
       offsetY: event.clientY - rect.top,
       startX: event.clientX,
       startY: event.clientY,
+      pointerId: event.pointerId,
+      target: event.currentTarget,
     };
     setIsDragging(true);
+    event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
   const handleBubblePointerMove = (event) => {
@@ -1352,23 +1417,43 @@ function AiAssistantWidget({
     if (!drag.active) return;
     const next = clampBubblePosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 6) drag.moved = true;
+    event.preventDefault();
     setBubblePosition(next);
   };
-  const handleBubblePointerUp = () => {
+  const handleBubblePointerUp = (event) => {
     const drag = dragRef.current;
     if (!drag.active) return;
     drag.active = false;
     setIsDragging(false);
     if (!drag.moved) return;
     setBubblePosition((position) => {
-      const current = position.x == null ? { x: window.innerWidth - 88, y: window.innerHeight - 88 } : position;
-      const gutter = 14;
-      return { ...current, x: current.x + 34 < window.innerWidth / 2 ? gutter : window.innerWidth - 82 };
+      const side = position.x + AI_BALL_SIZE / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      const snapped = clampBubblePosition(
+        side === 'left' ? AI_EDGE_GUTTER : window.innerWidth - AI_BALL_SIZE - AI_EDGE_GUTTER,
+        position.y,
+      );
+      try { localStorage.setItem(AI_POSITION_KEY, JSON.stringify({ side, y: snapped.y })); } catch { /* storage may be unavailable */ }
+      return snapped;
     });
+    drag.target?.releasePointerCapture?.(drag.pointerId);
   };
 
   useEffect(() => {
-    const keepBubbleVisible = () => setBubblePosition((position) => position.x == null ? position : clampBubblePosition(position.x, position.y));
+    window.addEventListener('pointermove', handleBubblePointerMove, { passive: false });
+    window.addEventListener('pointerup', handleBubblePointerUp);
+    window.addEventListener('pointercancel', handleBubblePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handleBubblePointerMove);
+      window.removeEventListener('pointerup', handleBubblePointerUp);
+      window.removeEventListener('pointercancel', handleBubblePointerUp);
+    };
+  });
+
+  useEffect(() => {
+    const keepBubbleVisible = () => setBubblePosition((position) => {
+      const side = position.x + AI_BALL_SIZE / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      return clampBubblePosition(side === 'left' ? AI_EDGE_GUTTER : window.innerWidth - AI_BALL_SIZE - AI_EDGE_GUTTER, position.y);
+    });
     window.addEventListener('resize', keepBubbleVisible);
     return () => window.removeEventListener('resize', keepBubbleVisible);
   }, []);
@@ -1377,18 +1462,16 @@ function AiAssistantWidget({
     ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
     : 'Full range';
 
-  const assistantOnLeft = bubblePosition.x != null && bubblePosition.x + 34 < window.innerWidth / 2;
-  const assistantOnUpperHalf = bubblePosition.y != null && bubblePosition.y + 34 < window.innerHeight / 2;
-  const panelMaxHeight = bubblePosition.y == null
-    ? undefined
-    : Math.max(240, assistantOnUpperHalf
-      ? window.innerHeight - bubblePosition.y - 96
-      : bubblePosition.y - 28);
+  const assistantOnLeft = bubblePosition.x + AI_BALL_SIZE / 2 < window.innerWidth / 2;
+  const assistantOnUpperHalf = bubblePosition.y + AI_BALL_SIZE / 2 < window.innerHeight / 2;
+  const panelMaxHeight = Math.max(240, assistantOnUpperHalf
+    ? window.innerHeight - bubblePosition.y - AI_BALL_SIZE - 24
+    : bubblePosition.y - 24);
 
   return (
     <div
-      className={`ai-assistant${isDragging ? ' ai-assistant--dragging' : ''}${assistantOnLeft ? ' ai-assistant--left' : ''}${assistantOnUpperHalf ? ' ai-assistant--upper' : ''}`}
-      style={bubblePosition.x == null ? undefined : { left: bubblePosition.x, top: bubblePosition.y, right: 'auto', bottom: 'auto' }}
+      className={`ai-assistant${isOpen ? ' ai-assistant--open' : ''}${isDragging ? ' ai-assistant--dragging' : ''}${assistantOnLeft ? ' ai-assistant--left' : ''}${assistantOnUpperHalf ? ' ai-assistant--upper' : ''}`}
+      style={{ left: bubblePosition.x, top: bubblePosition.y, right: 'auto', bottom: 'auto' }}
     >
       {isOpen && (
         <section
@@ -1559,10 +1642,8 @@ function AiAssistantWidget({
         type="button"
         className="ai-assistant-fab"
         aria-label="Open AI Assistant"
+        aria-expanded={isOpen}
         onPointerDown={handleBubblePointerDown}
-        onPointerMove={handleBubblePointerMove}
-        onPointerUp={handleBubblePointerUp}
-        onPointerCancel={handleBubblePointerUp}
         onClick={() => { if (!dragRef.current.moved) togglePanel(); }}
       >
         <span aria-hidden="true" className="text-lg leading-none">✦</span>

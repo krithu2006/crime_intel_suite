@@ -29,6 +29,22 @@ function FitMapToWards({ wards }) {
   return null;
 }
 
+function KeepMapSized() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const refresh = () => map.invalidateSize({ pan: false });
+    const timer = window.setTimeout(refresh, 180);
+    const observer = new ResizeObserver(refresh);
+    observer.observe(container);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 function riskGradient(score) {
   if (score >= 75) return '#ef4444';
   if (score >= 50) return '#f97316';
@@ -75,6 +91,7 @@ export default function RiskScoreMap({ riskScores, loading, predictionsByWard })
         style={{ height: '100%', width: '100%', background: '#e5e3df' }}
         zoomControl={false}
       >
+        <KeepMapSized />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url={mapStyle === 'satellite'

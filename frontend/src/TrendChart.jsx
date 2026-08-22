@@ -70,7 +70,7 @@ export default function TrendChart({ series }) {
   const xTickEvery = Math.max(1, Math.ceil(n / 7));
 
   return (
-    <div className="relative">
+    <div className="trend-chart relative">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label="Incident trend chart">
         {/* Expected range band */}
         {rangeAreaPoints.length > 2 && (

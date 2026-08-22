@@ -423,7 +423,7 @@ function RecentIncidents({ district, wardId, crimeType }) {
 
 function IncidentDetailModal({ incident, onClose }) {
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="incident-detail-backdrop fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="glass-card p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-bold text-white">Incident Details</h3>
