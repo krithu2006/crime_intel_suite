@@ -14,8 +14,8 @@
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: #020617;
-    color: #e2e8f0;
+    background: #eef3ff;
+    color: #16233d;
     min-height: 100vh;
   }
 
@@ -23,14 +23,14 @@
     width: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #0f172a;
+    background: #eef2ff;
   }
   ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: #b7c4dc;
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: #8d9db8;
   }
 }
 
@@ -38,10 +38,20 @@
 @layer components {
   .glass-card {
     @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg;
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(140, 157, 190, 0.28);
+    box-shadow: 0 12px 32px rgba(70, 91, 130, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.75);
   }
 
   .glass-card-hover {
     @apply glass-card transition-all duration-300 hover:border-primary-400/30 hover:shadow-glow hover:bg-white/[0.08];
+    transform: translateZ(0);
+  }
+
+  .glass-card-hover:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 18px 36px rgba(70, 91, 130, 0.16), 0 0 0 3px rgba(99, 102, 241, 0.08);
   }
 
   .gradient-text {
@@ -72,6 +82,67 @@
     @apply badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
   }
 }
+
+/* ── Light presentation system ── */
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(186, 212, 255, 0.76), transparent 29rem),
+    radial-gradient(circle at 93% 13%, rgba(220, 207, 255, 0.7), transparent 27rem),
+    linear-gradient(145deg, #f8faff 0%, #f2f6ff 48%, #f8f5ff 100%);
+}
+
+.app-header {
+  background: rgba(250, 252, 255, 0.82) !important;
+  border-color: rgba(140, 157, 190, 0.25) !important;
+  box-shadow: 0 6px 24px rgba(70, 91, 130, 0.07);
+}
+
+/* Existing components use Tailwind's dark-mode text utilities. These local
+   light-mode mappings retain their semantics without a component rewrite. */
+.app-shell .text-white { color: #17233d; }
+.app-shell .text-slate-100,
+.app-shell .text-slate-200 { color: #263650; }
+.app-shell .text-slate-300 { color: #34435d; }
+.app-shell .text-slate-400 { color: #5c6c87; }
+.app-shell .text-slate-500 { color: #71809a; }
+.app-shell .text-slate-600 { color: #8996ad; }
+.app-shell .bg-surface-800,
+.app-shell .bg-surface-900 { background-color: rgba(255, 255, 255, 0.86); }
+.app-shell .border-white\/10 { border-color: rgba(140, 157, 190, 0.25); }
+.app-shell .border-white\/5 { border-color: rgba(140, 157, 190, 0.16); }
+.app-shell .bg-white\/5,
+.app-shell .bg-white\/\[0\.03\],
+.app-shell .bg-white\/\[0\.05\] { background-color: rgba(255, 255, 255, 0.6); }
+.app-shell select,
+.app-shell input[type="date"] { color: #243451; background-color: rgba(255, 255, 255, 0.88) !important; }
+
+/* Preserve white foregrounds only where the coloured control requires it. */
+.app-shell .bg-primary-600.text-white,
+.app-shell .bg-primary-500.text-white,
+.app-shell .bg-gradient-to-br.text-white,
+.app-shell .bg-rose-500\/90.text-white { color: #fff; }
+
+.dashboard-kpis > *, .dashboard-metrics > * {
+  border-color: rgba(140, 157, 190, 0.28) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 9px 24px rgba(70, 91, 130, 0.09);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.dashboard-kpis > *:hover, .dashboard-metrics > *:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, .32) !important;
+  box-shadow: 0 16px 28px rgba(70, 91, 130, .15), 0 0 0 3px rgba(99, 102, 241, .06);
+}
+.dashboard-kpis .text-2xl { font-size: 1.9rem; line-height: 1; }
+.dashboard-metrics .text-lg { font-size: 1.35rem; }
+
+.dashboard-controls { position: relative; z-index: 1; }
+.dashboard-controls button { transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.dashboard-controls button:hover { transform: translateY(-1px); }
+.dashboard-controls .bg-primary-600 { box-shadow: 0 7px 16px rgba(79, 70, 229, .22); }
+
+/* ── Floating AI assistant ── */
 
 /* ── Animations ── */
 @keyframes float {
@@ -175,10 +246,9 @@
   right: 20px;
   bottom: 20px;
   z-index: 1200;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
+  width: 68px;
+  height: 68px;
+  touch-action: none;
 }
 
 .ai-assistant-button {
@@ -204,36 +274,57 @@
 .ai-assistant-fab {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1px;
+  width: 68px;
+  height: 68px;
+  padding: 0;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
   background: linear-gradient(135deg, #4f46e5, #0891b2);
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
-  box-shadow: 0 16px 36px rgba(8, 145, 178, 0.32), 0 0 0 5px rgba(79, 70, 229, 0.12);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 16px 36px rgba(8, 145, 178, 0.30), 0 0 0 6px rgba(99, 102, 241, 0.14), inset 0 1px 1px rgba(255,255,255,.36);
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, left .26s cubic-bezier(.2,.8,.2,1), top .16s ease;
 }
 
 .ai-assistant-fab:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 42px rgba(8, 145, 178, 0.38), 0 0 0 6px rgba(79, 70, 229, 0.16);
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 22px 44px rgba(8, 145, 178, 0.38), 0 0 0 8px rgba(99, 102, 241, 0.16);
 }
+.ai-assistant-fab:active { cursor: grabbing; transform: scale(.96); }
+.ai-assistant--dragging .ai-assistant-fab { transition: none; }
 
 /* ── AI Analysis Panel — matches the dashboard glass-card language ── */
 .ai-analysis-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 14px);
   display: flex;
   flex-direction: column;
   width: min(400px, calc(100vw - 28px));
   max-height: min(640px, calc(100vh - 120px));
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(140, 157, 190, 0.32);
   border-radius: 16px; /* matches rounded-2xl cards */
-  background: rgba(6, 11, 25, 0.9);
-  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.55);
+  background: rgba(250, 252, 255, 0.93);
+  box-shadow: 0 24px 80px rgba(41, 57, 86, 0.24);
   backdrop-filter: blur(20px);
   animation: aiPanelIn 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-assistant--left .ai-analysis-panel {
+  right: auto;
+  left: 0;
+}
+
+.ai-assistant--upper .ai-analysis-panel {
+  top: calc(100% + 14px);
+  bottom: auto;
 }
 
 .ai-analysis-messages {
@@ -338,6 +429,8 @@
   .ai-assistant {
     right: 14px;
     bottom: 14px;
+    width: 60px;
+    height: 60px;
   }
 
   .ai-assistant-button {
@@ -367,7 +460,41 @@
   transition: all 0.2s ease;
 }
 .ward-card-hover:hover {
-  background-color: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateX(2px);
+  background-color: rgba(255, 255, 255, 0.86);
+  border-color: rgba(99, 102, 241, 0.28);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(70, 91, 130, .10);
+}
+
+/* ── District Intelligence: the presentation focal point ── */
+.district-intelligence { max-width: 1280px; margin: 0 auto; }
+.district-breadcrumb { background: rgba(255,255,255,.68); }
+.district-hero {
+  padding: 1.35rem 1.5rem;
+  border: 1px solid rgba(141, 156, 191, .25);
+  border-radius: 1.25rem;
+  background: linear-gradient(105deg, rgba(255,255,255,.85), rgba(239,244,255,.74));
+  box-shadow: 0 12px 28px rgba(70, 91, 130, .08);
+}
+.district-kpi {
+  background: rgba(255,255,255,.74) !important;
+  border-color: rgba(140,157,190,.26) !important;
+  box-shadow: 0 8px 20px rgba(70,91,130,.08);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.district-kpi:hover, .district-insight-card:hover, .district-rankings:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99,102,241,.3) !important;
+  box-shadow: 0 16px 30px rgba(70,91,130,.13), 0 0 0 3px rgba(99,102,241,.05);
+}
+.district-insight-card, .district-rankings { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.district-ranking-row { transition: background-color .18s ease, transform .18s ease; }
+.district-ranking-row:hover { background: rgba(226,232,255,.46) !important; transform: translateX(3px); }
+.district-rankings thead { background: rgba(237,241,252,.6); }
+.district-rankings th { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; }
+
+@media (max-width: 640px) {
+  .dashboard-kpis .text-2xl { font-size: 1.55rem; }
+  .district-hero { padding: 1.1rem; }
+  .ai-assistant-fab { width: 60px; height: 60px; }
 }

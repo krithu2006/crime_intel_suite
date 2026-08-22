@@ -501,9 +501,9 @@ function App() {
     : [];
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="app-shell min-h-screen flex flex-col">
       {/* ── Header ── */}
-      <header className="border-b border-white/10 bg-surface-800/60 backdrop-blur-xl sticky top-0 z-50">
+      <header className="app-header border-b border-white/10 bg-surface-800/60 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-cyan flex items-center justify-center shadow-glow flex-shrink-0">
@@ -591,7 +591,7 @@ function App() {
         ) : (
           <div className="animate-fade-in space-y-6">
             {/* ── Stats Row ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-4 gap-4">
               <StatCard icon="🚨" label="Incidents" value={health.incidents?.toLocaleString() ?? '—'}
                 color="from-primary-500/20 to-primary-600/10" borderColor="border-primary-500/20" />
               <StatCard icon="👤" label="Accused" value={health.accused?.toLocaleString() ?? '—'}
@@ -617,7 +617,7 @@ function App() {
             </div>
 
             {/* ── Controls Bar ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 -mt-2">
+            <div className="dashboard-metrics grid grid-cols-2 sm:grid-cols-5 gap-3 -mt-2">
               {[
                 ['Total clusters', hotspots?.n_clusters ?? 0, 'text-sky-300'],
                 ['High risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'High').length, 'text-rose-300'],
@@ -632,7 +632,7 @@ function App() {
               ))}
             </div>
 
-            <div className="glass-card px-5 py-3 flex flex-wrap items-center gap-4">
+            <div className="dashboard-controls glass-card px-5 py-3 flex flex-wrap items-center gap-4">
               {/* View Toggle */}
               <div className="flex rounded-lg border border-white/10 overflow-hidden">
                 <button
@@ -1283,7 +1283,7 @@ function AiAssistantWidget({
       const data = await response.json();
       setMessages((prev) => [...prev, { role: 'assistant', text: data.answer || 'No grounded answer was available.', evidence: data.evidence || [], actions: data.actions || [], sources: data.sources || [], ts: Date.now() }]);
     } catch {
-      addAssistantMessage('The Intelligence Copilot is temporarily unavailable. Please try again after the backend responds.');
+      addAssistantMessage('The AI Assistant is temporarily unavailable. Please try again after the backend responds.');
     } finally {
       setAiLoading(false);
     }
@@ -1321,16 +1321,80 @@ function AiAssistantWidget({
 
   const togglePanel = () => (isOpen ? closePanel() : setIsOpen(true));
 
+  // Keep drag state out of React state so the bubble follows the pointer with
+  // no render lag. `dragMoved` prevents a drag-release from opening the panel.
+  const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, startX: 0, startY: 0 });
+  const [bubblePosition, setBubblePosition] = useState({ x: null, y: null });
+  const [isDragging, setIsDragging] = useState(false);
+  const clampBubblePosition = (x, y) => {
+    const size = 68;
+    const gutter = 14;
+    return {
+      x: Math.max(gutter, Math.min(x, window.innerWidth - size - gutter)),
+      y: Math.max(gutter, Math.min(y, window.innerHeight - size - gutter)),
+    };
+  };
+  const handleBubblePointerDown = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      active: true,
+      moved: false,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    setIsDragging(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleBubblePointerMove = (event) => {
+    const drag = dragRef.current;
+    if (!drag.active) return;
+    const next = clampBubblePosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 6) drag.moved = true;
+    setBubblePosition(next);
+  };
+  const handleBubblePointerUp = () => {
+    const drag = dragRef.current;
+    if (!drag.active) return;
+    drag.active = false;
+    setIsDragging(false);
+    if (!drag.moved) return;
+    setBubblePosition((position) => {
+      const current = position.x == null ? { x: window.innerWidth - 88, y: window.innerHeight - 88 } : position;
+      const gutter = 14;
+      return { ...current, x: current.x + 34 < window.innerWidth / 2 ? gutter : window.innerWidth - 82 };
+    });
+  };
+
+  useEffect(() => {
+    const keepBubbleVisible = () => setBubblePosition((position) => position.x == null ? position : clampBubblePosition(position.x, position.y));
+    window.addEventListener('resize', keepBubbleVisible);
+    return () => window.removeEventListener('resize', keepBubbleVisible);
+  }, []);
+
   const dateRangeLabel = dateFrom && dateTo
     ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
     : 'Full range';
 
+  const assistantOnLeft = bubblePosition.x != null && bubblePosition.x + 34 < window.innerWidth / 2;
+  const assistantOnUpperHalf = bubblePosition.y != null && bubblePosition.y + 34 < window.innerHeight / 2;
+  const panelMaxHeight = bubblePosition.y == null
+    ? undefined
+    : Math.max(240, assistantOnUpperHalf
+      ? window.innerHeight - bubblePosition.y - 96
+      : bubblePosition.y - 28);
+
   return (
-    <div className="ai-assistant">
+    <div
+      className={`ai-assistant${isDragging ? ' ai-assistant--dragging' : ''}${assistantOnLeft ? ' ai-assistant--left' : ''}${assistantOnUpperHalf ? ' ai-assistant--upper' : ''}`}
+      style={bubblePosition.x == null ? undefined : { left: bubblePosition.x, top: bubblePosition.y, right: 'auto', bottom: 'auto' }}
+    >
       {isOpen && (
         <section
           className={`ai-analysis-panel${isClosing ? ' ai-analysis-panel--closing' : ''}`}
           aria-label="AI analysis panel"
+          style={panelMaxHeight ? { maxHeight: panelMaxHeight } : undefined}
         >
           {/* ── Header ── */}
           <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-white/10">
@@ -1339,7 +1403,7 @@ function AiAssistantWidget({
                 🤖
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-bold text-white leading-tight">Intelligence Copilot</h2>
+                <h2 className="text-sm font-bold text-white leading-tight">AI Assistant</h2>
                 <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
                   Evidence-grounded answers from the current analytical scope.
                 </p>
@@ -1377,7 +1441,7 @@ function AiAssistantWidget({
               <div className="ai-empty space-y-3.5">
                 {/* Friendly introduction */}
                 <p className="text-[12.5px] leading-relaxed text-slate-300">
-                  Hi — I’m your Intelligence Copilot. Ask about risk, trends, alerts, hotspots, incidents,
+                  Hi — I’m your AI Assistant. Ask about risk, trends, alerts, hotspots, incidents,
                   offender networks, or the current intelligence brief.
                 </p>
 
@@ -1493,12 +1557,16 @@ function AiAssistantWidget({
 
       <button
         type="button"
-        onClick={togglePanel}
         className="ai-assistant-fab"
-        aria-label="Open Intelligence Copilot"
+        aria-label="Open AI Assistant"
+        onPointerDown={handleBubblePointerDown}
+        onPointerMove={handleBubblePointerMove}
+        onPointerUp={handleBubblePointerUp}
+        onPointerCancel={handleBubblePointerUp}
+        onClick={() => { if (!dragRef.current.moved) togglePanel(); }}
       >
-        <span aria-hidden="true" className="text-base leading-none">🤖</span>
-        <span>{isOpen ? 'Close' : 'Copilot'}</span>
+        <span aria-hidden="true" className="text-lg leading-none">✦</span>
+        <span>AI</span>
       </button>
     </div>
   );

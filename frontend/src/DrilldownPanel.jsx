@@ -35,7 +35,7 @@ export default function DrilldownPanel({
   horizonDays, onGoToView,
 }) {
   return (
-    <div className="space-y-4">
+    <div className="district-intelligence space-y-5">
       <Breadcrumb
         district={selectedDistrict}
         ward={selectedWard}
@@ -69,7 +69,7 @@ export default function DrilldownPanel({
 
 function Breadcrumb({ district, ward, onClearToKarnataka, onClearWard }) {
   return (
-    <div className="flex items-center gap-2 text-sm glass-card px-4 py-2.5">
+    <div className="district-breadcrumb flex items-center gap-2 text-sm glass-card px-4 py-3">
       <button
         type="button"
         onClick={onClearToKarnataka}
@@ -101,7 +101,7 @@ function Breadcrumb({ district, ward, onClearToKarnataka, onClearWard }) {
 
 function DistrictSelector({ districtsList, onSelectDistrict }) {
   return (
-    <div className="glass-card p-8 text-center">
+    <div className="district-selector glass-card p-8 text-center">
       <p className="text-base font-semibold text-slate-300 mb-1">Select a District to Explore</p>
       <p className="text-sm text-slate-500 mb-5">
         Choose a district to see its intelligence overview — incidents, hotspots, risk, alerts and repeat offenders.
@@ -156,11 +156,15 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
   const s = data.summary;
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-xl font-bold text-white">{district}</h2>
+    <div className="space-y-6">
+      <div className="district-hero">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">District intelligence</p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-white mt-1">{district}</h2>
+        <p className="text-sm text-slate-500 mt-1">A focused view of current risk, activity, and ward priorities.</p>
+      </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="district-kpis grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Kpi label="Total Incidents" value={s.incidents.toLocaleString()} color="text-white" />
         <Kpi label="Active Hotspots" value={s.active_hotspots} color={s.active_hotspots > 0 ? 'text-orange-400' : 'text-slate-300'} />
         <Kpi label="High-Risk Wards" value={s.high_risk_wards} color={s.high_risk_wards > 0 ? 'text-red-400' : 'text-slate-300'} />
@@ -169,13 +173,13 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
       </div>
 
       {/* Crime composition + trend summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="district-insight-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CrimeComposition composition={data.crime_composition} />
         <TrendSummary trend={data.trend_summary} />
       </div>
 
       {/* Ward rankings table */}
-      <div className="glass-card p-4">
+      <div className="district-rankings glass-card p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ward Priorities</p>
           <div className="flex items-center gap-2">
@@ -207,7 +211,7 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
                   <tr
                     key={w.ward_id}
                     onClick={() => onSelectWard(w.ward_id, w.ward_name, district)}
-                    className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors"
+                    className="district-ranking-row border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors"
                   >
                     <td className="py-2 pr-3 text-white font-medium">{w.ward_name}</td>
                     <td className="py-2 pr-3 text-right text-slate-300 tabular-nums">{w.incidents}</td>
@@ -258,9 +262,9 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
 
 function Kpi({ label, value, color }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-center">
-      <p className={`text-2xl font-bold tabular-nums ${color}`}>{value ?? '—'}</p>
-      <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-0.5">{label}</p>
+    <div className="district-kpi rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center">
+      <p className={`text-3xl font-bold tabular-nums ${color}`}>{value ?? '—'}</p>
+      <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 mt-1">{label}</p>
     </div>
   );
 }
@@ -268,7 +272,7 @@ function Kpi({ label, value, color }) {
 function CrimeComposition({ composition }) {
   const colors = ['#38bdf8', '#f97316', '#a78bfa', '#f43f5e', '#facc15', '#34d399', '#94a3b8'];
   return (
-    <div className="glass-card p-4">
+    <div className="district-insight-card glass-card p-5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Crime Composition</p>
       {!composition || composition.length === 0 ? (
         <p className="text-sm text-slate-500 italic">No incidents in this scope.</p>
@@ -291,7 +295,7 @@ function CrimeComposition({ composition }) {
 
 function TrendSummary({ trend }) {
   return (
-    <div className="glass-card p-4">
+    <div className="district-insight-card glass-card p-5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Recent Trend</p>
       {!trend ? (
         <p className="text-sm text-slate-500 italic">No unusual crime trend detected in this district.</p>
