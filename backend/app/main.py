@@ -32,7 +32,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 
-from .database import engine, get_db, Base
+from .database import engine, get_db, Base, migrate_alert_read_state
 from .models import Incident, Accused, DistrictSocioEconomic, Ward, incident_accused
 from .analytics import (
     DEFAULT_EPS,
@@ -43,7 +43,10 @@ from .analytics import (
 from .risk_scoring import compute_risk_scores
 from .prediction import predict_risk, VALID_HORIZONS, DEFAULT_HORIZON
 from .trend_analysis import analyze_trends, GRANULARITIES, DEFAULT_GRANULARITY
-from .alert_engine import generate_alerts, set_alert_status, VALID_STATUSES
+from .alert_engine import (
+    generate_alerts, set_alert_status, mark_alert_read, mark_alerts_read,
+    VALID_STATUSES,
+)
 from .drilldown import get_district_drilldown, get_ward_drilldown, DRILLDOWN_GRANULARITY, DRILLDOWN_HORIZON_DAYS
 from .network_analysis import build_network, get_individual
 from .intelligence_brief import generate_intelligence_brief
@@ -88,6 +91,7 @@ _load_local_env()
 
 # Create tables if they don't exist (idempotent)
 Base.metadata.create_all(bind=engine)
+migrate_alert_read_state()
 
 app = FastAPI(
     title="Crime Intel Suite API",
@@ -426,6 +430,40 @@ def get_alerts(
         severity=severity,
         status=status,
     )
+
+
+def _global_alerts(db: Session) -> list[dict]:
+    """Return the current generated alert set without changing its logic."""
+    return generate_alerts(db, status="ALL").get("alerts", [])
+
+
+@app.get("/api/notifications/count")
+def get_notification_count(db: Session = Depends(get_db)):
+    """Return only the number of current intelligence alerts not yet viewed."""
+    alerts = _global_alerts(db)
+    return {"unread_count": sum(1 for alert in alerts if not alert["is_read"])}
+
+
+@app.get("/api/notifications")
+def get_notifications(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get_db)):
+    """Return a compact, ranked unread-alert list for the header dropdown."""
+    unread = [alert for alert in _global_alerts(db) if not alert["is_read"]]
+    severity_counts = {
+        severity: sum(1 for alert in unread if alert.get("severity") == severity)
+        for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+    }
+    return {"unread_count": len(unread), "severity_counts": severity_counts, "alerts": unread[:limit]}
+
+
+@app.patch("/api/alerts/{alert_id}/read")
+def patch_alert_read(alert_id: str, db: Session = Depends(get_db)):
+    return mark_alert_read(db, alert_id)
+
+
+@app.patch("/api/notifications/read-all")
+def patch_all_notifications_read(db: Session = Depends(get_db)):
+    unread_ids = [alert["id"] for alert in _global_alerts(db) if not alert["is_read"]]
+    return {"success": True, "marked_read": mark_alerts_read(db, unread_ids)}
 
 
 @app.patch("/api/alerts/{alert_id}")

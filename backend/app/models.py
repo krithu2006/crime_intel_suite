@@ -131,6 +131,7 @@ class AlertStatus(Base):
     alert_id = Column(String(200), primary_key=True)
     status = Column(String(20), nullable=False, default="NEW")
     note = Column(Text, nullable=True)
+    read_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False)
 
@@ -139,6 +140,8 @@ class AlertStatus(Base):
             "alert_id": self.alert_id,
             "status": self.status,
             "note": self.note,
+            "is_read": self.read_at is not None,
+            "read_at": self.read_at.isoformat() if self.read_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -46,6 +46,11 @@ function formatMetric(value, decimals = 1) {
   });
 }
 
+function formatNotificationDate(iso) {
+  if (!iso) return 'Recently detected';
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function App() {
   const [theme, setTheme] = useState(getInitialTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -86,7 +91,13 @@ function App() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertSeverityFilter, setAlertSeverityFilter] = useState('ALL');
   const [alertStatusFilter, setAlertStatusFilter] = useState('ACTIVE');
-  const [newAlertCount, setNewAlertCount] = useState(0);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationSeverityCounts, setNotificationSeverityCounts] = useState({});
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationRef = useRef(null);
+  const [selectedAlertId, setSelectedAlertId] = useState(null);
+  const selectedAlertTimer = useRef(null);
 
   // View toggle: 'hotspots', 'risk', 'network', 'trends', or 'alerts'
   const [mapView, setMapView] = useState('hotspots');
@@ -288,12 +299,22 @@ function App() {
   }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard, trendGranularity,
       alertSeverityFilter, alertStatusFilter]);
 
-  // ── Bell indicator: global NEW-alert count, independent of the current
-  // filters so it doesn't fluctuate as the analyst browses other tabs ──
-  const fetchNewAlertCount = useCallback(() => {
-    fetch(`${API_URL}/api/alerts?status=NEW`)
+  // Notification state is global and independent from investigation status.
+  const fetchUnreadAlertCount = useCallback(() => {
+    fetch(`${API_URL}/api/notifications/count`)
       .then((res) => res.json())
-      .then((data) => setNewAlertCount(data?.summary?.new ?? 0))
+      .then((data) => setUnreadAlertCount(data?.unread_count ?? 0))
+      .catch(() => {});
+  }, []);
+
+  const fetchNotifications = useCallback(() => {
+    fetch(`${API_URL}/api/notifications?limit=5`)
+      .then((res) => res.json())
+      .then((data) => {
+        setNotifications(data?.alerts || []);
+        setNotificationSeverityCounts(data?.severity_counts || {});
+        setUnreadAlertCount(data?.unread_count ?? 0);
+      })
       .catch(() => {});
   }, []);
 
@@ -390,16 +411,27 @@ function App() {
     }
   }, [health, error, mapView, selectedWard, selectedDistrict, fetchWardDrilldown, fetchDistrictDrilldown]);
 
-  // Bell count is independent of the active tab/filters — fetched once the
-  // backend is up, and re-synced after any status change (see handleAlertStatusChange).
+  // Fetch on startup and periodically so newly generated alerts appear.
   useEffect(() => {
     if (health && !error) {
-      fetchNewAlertCount();
+      fetchUnreadAlertCount();
+      const timer = window.setInterval(fetchUnreadAlertCount, 60000);
+      return () => window.clearInterval(timer);
     }
-  }, [health, error, fetchNewAlertCount]);
+  }, [health, error, fetchUnreadAlertCount]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    fetchNotifications();
+    const closeOnOutsideClick = (event) => {
+      if (!notificationRef.current?.contains(event.target)) setNotificationsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [notificationsOpen, fetchNotifications]);
 
   // A status change updates the local list immediately (no full refetch) and
-  // re-syncs the bell count, since that's the only thing a status change can affect.
+  // Workflow status remains independent from notification read state.
   const handleAlertStatusChange = useCallback((alertId, newStatus) => {
     return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}`, {
       method: 'PATCH',
@@ -414,10 +446,48 @@ function App() {
           const nextAlerts = prev.alerts.map((a) => (a.id === alertId ? { ...a, status: updated.status, note: updated.note } : a));
           return { ...prev, alerts: nextAlerts };
         });
-        fetchNewAlertCount();
         return updated;
       });
-  }, [fetchNewAlertCount]);
+  }, []);
+
+  const handleAlertRead = useCallback((alertId) => {
+    return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}/read`, { method: 'PATCH' })
+      .then((res) => res.json())
+      .then((result) => {
+        if (!result?.success) throw new Error('Could not mark alert read');
+        setAlertsData((prev) => prev ? {
+          ...prev,
+          alerts: prev.alerts.map((alert) => alert.id === alertId ? { ...alert, is_read: true, read_at: result.read_at } : alert),
+        } : prev);
+        setNotifications((prev) => {
+          const readAlert = prev.find((alert) => alert.id === alertId);
+          if (readAlert?.severity) {
+            setNotificationSeverityCounts((counts) => ({ ...counts, [readAlert.severity]: Math.max(0, (counts[readAlert.severity] || 0) - 1) }));
+          }
+          return prev.filter((alert) => alert.id !== alertId);
+        });
+        setUnreadAlertCount((count) => Math.max(0, count - 1));
+        fetchUnreadAlertCount();
+        return result;
+      });
+  }, [fetchUnreadAlertCount]);
+
+  const handleMarkAllRead = useCallback(() => {
+    return fetch(`${API_URL}/api/notifications/read-all`, { method: 'PATCH' })
+      .then((res) => res.json())
+      .then((result) => {
+        if (!result?.success) throw new Error('Could not mark all alerts read');
+        setUnreadAlertCount(0);
+        setNotifications([]);
+        setNotificationSeverityCounts({});
+        setAlertsData((prev) => prev ? {
+          ...prev,
+          alerts: prev.alerts.map((alert) => ({ ...alert, is_read: true })),
+        } : prev);
+        fetchUnreadAlertCount();
+        return result;
+      });
+  }, [fetchUnreadAlertCount]);
 
   // Navigate from an alert into the relevant existing module, preserving
   // district/crime-type/ward scope so the analyst lands in the right context.
@@ -427,6 +497,21 @@ function App() {
     setSettingsOpen(false);
   }, []);
   const closeFeature = useCallback(() => setActiveFeature(null), []);
+
+  const openAlertFromNotification = useCallback((alert) => {
+    setSelectedDistrict(alert.district || '');
+    setSelectedCrimeType(alert.crime_type || '');
+    setSelectedWard(alert.ward_id != null ? { id: alert.ward_id, name: alert.ward, district: alert.district } : null);
+    setDateFrom('');
+    setDateTo('');
+    setAlertSeverityFilter('ALL');
+    setAlertStatusFilter('ALL');
+    setSelectedAlertId(alert.id);
+    if (selectedAlertTimer.current) window.clearTimeout(selectedAlertTimer.current);
+    selectedAlertTimer.current = window.setTimeout(() => setSelectedAlertId(null), 3000);
+    setNotificationsOpen(false);
+    openFeature('alerts');
+  }, [openFeature]);
 
   const handleAlertNavigate = useCallback((action, alert) => {
     setSelectedDistrict(alert.district || '');
@@ -553,20 +638,62 @@ function App() {
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {!loading && !error && (
-              <button
-                type="button"
-                onClick={() => openFeature('alerts')}
-                className="relative flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 transition-colors hover:border-primary-400/40 hover:bg-primary-500/10 hover:text-white"
-                aria-label="Open Intelligence Alerts"
-                title="Intelligence Alerts"
-              >
-                <span aria-hidden="true">🔔</span>
-                {newAlertCount > 0 && (
-                  <span className="badge bg-rose-500/90 text-white text-[10px] px-1.5 py-0 min-w-[18px] justify-center">
-                    {newAlertCount}
-                  </span>
+              <div className="notification-menu" ref={notificationRef}>
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen((open) => !open)}
+                  className="notification-bell relative flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-300 transition-colors hover:border-primary-400/40 hover:bg-primary-500/10 hover:text-white"
+                  aria-label={`Notifications${unreadAlertCount ? `, ${unreadAlertCount} unread` : ''}`}
+                  aria-expanded={notificationsOpen}
+                  title="Notifications"
+                >
+                  <span aria-hidden="true">🔔</span>
+                  {unreadAlertCount > 0 && (
+                    <span key={unreadAlertCount} className="notification-badge badge bg-rose-500/90 text-white text-[10px] px-1.5 py-0 min-w-[18px] justify-center">
+                      {unreadAlertCount}
+                    </span>
+                  )}
+                </button>
+                {notificationsOpen && (
+                  <div className="notification-dropdown" role="dialog" aria-label="Notifications">
+                    <div className="notification-dropdown__header">
+                      <div>
+                        <strong>Notifications</strong>
+                        <p>{unreadAlertCount === 0 ? 'No new alerts' : `${unreadAlertCount} new alert${unreadAlertCount === 1 ? '' : 's'}`}</p>
+                      </div>
+                    </div>
+                    <div className="notification-summary">
+                      {['CRITICAL', 'HIGH', 'MEDIUM'].map((severity) => (
+                        <span key={severity} className={`notification-summary__item notification-summary__item--${severity.toLowerCase()}`}>
+                          <b>{notificationSeverityCounts[severity] || 0}</b> {severity[0] + severity.slice(1).toLowerCase()}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="notification-dropdown__list">
+                      {notifications.length === 0 ? (
+                        <p className="notification-dropdown__empty">You’re all caught up.</p>
+                      ) : notifications.map((alert) => (
+                        <button key={alert.id} type="button" className="notification-item" onClick={() => {
+                          handleAlertRead(alert.id).then(() => openAlertFromNotification(alert)).catch(() => {});
+                        }}>
+                          <span className={`notification-item__dot notification-item__dot--${alert.severity?.toLowerCase() || 'low'}`} aria-hidden="true" />
+                          <span>
+                            <span className={`notification-item__severity notification-item__severity--${alert.severity?.toLowerCase() || 'low'}`}>{alert.severity || 'ALERT'}</span>
+                            <strong>{alert.title}</strong>
+                            <small>{[alert.district, alert.ward].filter(Boolean).join(' · ')}</small>
+                            <small>{alert.description || alert.type} · {formatNotificationDate(alert.period || alert.detected_at)}</small>
+                            <small className="notification-item__action">Click to investigate →</small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" className="notification-dropdown__footer" onClick={() => {
+                      setNotificationsOpen(false);
+                      openFeature('alerts');
+                    }}>View all alerts <span aria-hidden="true">→</span></button>
+                  </div>
                 )}
-              </button>
+              </div>
             )}
             <button
               type="button"
@@ -827,7 +954,7 @@ function App() {
                     ['High-risk wards', riskScores?.wards?.filter((ward) => ward.risk_score >= 50).length ?? '—', 'signal-critical'],
                     ['Active hotspots', hotspots?.n_clusters ?? '—', 'signal-info'],
                     ['Average risk', riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'signal-predictive'],
-                    ['New alerts', newAlertCount, 'signal-warning'],
+                    ['Unread alerts', unreadAlertCount, 'signal-warning'],
                   ].map(([label, value, tone]) => (
                     <div key={label} className={`overview-signal glass-interactive ${tone}`}>
                       <p>{label}</p>
@@ -968,6 +1095,10 @@ function App() {
                   statusFilter={alertStatusFilter}
                   onStatusFilterChange={setAlertStatusFilter}
                   onStatusChange={handleAlertStatusChange}
+                  onAlertRead={handleAlertRead}
+                  onMarkAllRead={handleMarkAllRead}
+                  unreadCount={unreadAlertCount}
+                  selectedAlertId={selectedAlertId}
                   onNavigate={handleAlertNavigate}
                   onSelectWard={selectWard}
                 />

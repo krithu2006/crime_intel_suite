@@ -340,6 +340,47 @@ def set_alert_status(db: Session, alert_id: str, status: str, note: str | None =
     return row.to_dict()
 
 
+def mark_alert_read(db: Session, alert_id: str) -> dict:
+    """Persist notification read state without changing investigation status."""
+    now = datetime.utcnow()
+    row = db.query(AlertStatus).filter(AlertStatus.alert_id == alert_id).first()
+    if row is None:
+        row = AlertStatus(
+            alert_id=alert_id, status=DEFAULT_STATUS, read_at=now,
+            created_at=now, updated_at=now,
+        )
+        db.add(row)
+    elif row.read_at is None:
+        row.read_at = now
+        row.updated_at = now
+    db.commit()
+    db.refresh(row)
+    return {"success": True, **row.to_dict()}
+
+
+def mark_alerts_read(db: Session, alert_ids: list[str]) -> int:
+    """Mark the supplied generated alerts read while preserving workflow state."""
+    if not alert_ids:
+        return 0
+    now = datetime.utcnow()
+    existing = _load_statuses(db, alert_ids)
+    changed = 0
+    for alert_id in alert_ids:
+        row = existing.get(alert_id)
+        if row is None:
+            db.add(AlertStatus(
+                alert_id=alert_id, status=DEFAULT_STATUS, read_at=now,
+                created_at=now, updated_at=now,
+            ))
+            changed += 1
+        elif row.read_at is None:
+            row.read_at = now
+            row.updated_at = now
+            changed += 1
+    db.commit()
+    return changed
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Public entry point
 # ═══════════════════════════════════════════════════════════════════════════
@@ -439,12 +480,14 @@ def generate_alerts(
             if "view_network" not in alert["available_actions"]:
                 alert["available_actions"].append("view_network")
 
-    # Merge in persisted workflow status.
+    # Merge persisted workflow and independent notification-read state.
     statuses = _load_statuses(db, [a["id"] for a in alerts])
     for alert in alerts:
         row = statuses.get(alert["id"])
         alert["status"] = row.status if row else DEFAULT_STATUS
         alert["note"] = row.note if row else None
+        alert["is_read"] = row.read_at is not None if row else False
+        alert["read_at"] = row.read_at.isoformat() if row and row.read_at else None
 
     summary = _summarize(alerts)
 

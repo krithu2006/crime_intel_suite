@@ -9,7 +9,7 @@
  * straight from GET /api/alerts (alert_engine.py), which itself only
  * normalizes real analytics output.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const SEVERITY_OPTIONS = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const STATUS_OPTIONS = ['ACTIVE', 'ALL', 'NEW', 'REVIEWED', 'INVESTIGATING', 'CLOSED'];
@@ -49,11 +49,12 @@ function formatDate(iso) {
 export default function AlertsPanel({
   alertsData, loading, granularity, onGranularityChange,
   severityFilter, onSeverityFilterChange, statusFilter, onStatusFilterChange,
-  onStatusChange, onNavigate, onSelectWard,
+  onStatusChange, onAlertRead, onMarkAllRead, unreadCount, selectedAlertId, onNavigate, onSelectWard,
 }) {
   const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'newest'
 
   const alerts = alertsData?.alerts || [];
+  const selectedAlert = alerts.find((alert) => alert.id === selectedAlertId);
   const sorted = useMemo(() => {
     if (sortBy === 'priority') return alerts; // backend already ranks by priority
     return [...alerts].sort((a, b) => {
@@ -62,6 +63,12 @@ export default function AlertsPanel({
       return bd.localeCompare(ad);
     });
   }, [alerts, sortBy]);
+
+  useEffect(() => {
+    if (!selectedAlertId || loading) return;
+    const target = document.querySelector(`[data-alert-id="${CSS.escape(selectedAlertId)}"]`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [selectedAlertId, loading, sorted.length]);
 
   return (
     <div className="alerts-panel glass-card p-5 space-y-5">
@@ -75,6 +82,10 @@ export default function AlertsPanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => onMarkAllRead().catch(() => {})} disabled={!unreadCount}
+            className="mark-all-read-button" title="Mark every unread intelligence alert as read">
+            Mark all as read
+          </button>
           <FilterSelect label="Severity" value={severityFilter} options={SEVERITY_OPTIONS} onChange={onSeverityFilterChange} />
           <FilterSelect label="Status" value={statusFilter} options={STATUS_OPTIONS} onChange={onStatusFilterChange}
             optionLabel={(o) => (o === 'ACTIVE' ? 'Active (default)' : o)} />
@@ -112,6 +123,12 @@ export default function AlertsPanel({
         </div>
       ) : (
         <>
+          {selectedAlert && (
+            <div className="selected-alert-banner" role="status">
+              <span className="selected-alert-banner__icon" aria-hidden="true">↗</span>
+              <span><strong>Opened from notification</strong><small>Alert ID: {selectedAlert.id} · Detected {formatDate(selectedAlert.period || selectedAlert.detected_at)} · {selectedAlert.severity}</small></span>
+            </div>
+          )}
           <AlertSummary summary={alertsData.summary} />
 
           {sorted.length === 0 ? (
@@ -124,7 +141,7 @@ export default function AlertsPanel({
           ) : (
             <div className="alerts-list custom-scrollbar space-y-3">
               {sorted.map((alert) => (
-                <AlertCard key={alert.id} alert={alert} onStatusChange={onStatusChange} onNavigate={onNavigate} onSelectWard={onSelectWard} />
+                <AlertCard key={alert.id} alert={alert} selected={alert.id === selectedAlertId} onStatusChange={onStatusChange} onAlertRead={onAlertRead} onNavigate={onNavigate} onSelectWard={onSelectWard} />
               ))}
             </div>
           )}
@@ -169,10 +186,11 @@ function AlertSummary({ summary }) {
   );
 }
 
-function AlertCard({ alert, onStatusChange, onNavigate, onSelectWard }) {
+function AlertCard({ alert, selected, onStatusChange, onAlertRead, onNavigate, onSelectWard }) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [statusError, setStatusError] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
   const style = SEVERITY_STYLE[alert.severity] || SEVERITY_STYLE.LOW;
 
   const handleStatusSelect = (e) => {
@@ -187,11 +205,22 @@ function AlertCard({ alert, onStatusChange, onNavigate, onSelectWard }) {
 
   const where = [alert.district, alert.ward].filter(Boolean).join(' → ');
 
+  const handleOpen = () => {
+    if (alert.is_read || markingRead || !onAlertRead) return;
+    setMarkingRead(true);
+    onAlertRead(alert.id).catch(() => {}).finally(() => setMarkingRead(false));
+  };
+
+  useEffect(() => {
+    if (selected) setExpanded(true);
+  }, [selected]);
+
   return (
-    <div className={`alert-card alert-card--${alert.severity?.toLowerCase() || 'low'} rounded-xl border p-4 ${style.card}`}>
+    <div data-alert-id={alert.id} onClick={handleOpen} className={`alert-card alert-card--${alert.severity?.toLowerCase() || 'low'} ${alert.is_read ? 'alert-card--read' : 'alert-card--unread'} ${selected ? 'alert-card--selected' : ''} rounded-xl border p-4 ${style.card}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {!alert.is_read && <span className="alert-unread-dot" title="Unread" aria-label="Unread alert" />}
             <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded ${style.badge}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
               {alert.severity}
