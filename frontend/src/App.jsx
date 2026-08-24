@@ -649,7 +649,7 @@ function App() {
                 >
                   <span aria-hidden="true">🔔</span>
                   {unreadAlertCount > 0 && (
-                    <span key={unreadAlertCount} className="notification-badge badge bg-rose-500/90 text-white text-[10px] px-1.5 py-0 min-w-[18px] justify-center">
+                    <span key={unreadAlertCount} className="notification-badge">
                       {unreadAlertCount}
                     </span>
                   )}
