@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any
 
 import requests
@@ -47,10 +47,14 @@ def route_intent(message: str) -> str:
 
 
 def _dates(context: dict) -> tuple[datetime | None, datetime | None]:
-    def parse(value):
-        try: return datetime.fromisoformat(value) if value else None
+    def parse(value, end_of_day=False):
+        try:
+            parsed = datetime.fromisoformat(value) if value else None
+            if parsed and end_of_day and "T" not in value and " " not in value:
+                return datetime.combine(parsed.date(), time.max)
+            return parsed
         except (TypeError, ValueError): return None
-    return parse(context.get("date_from")), parse(context.get("date_to"))
+    return parse(context.get("date_from")), parse(context.get("date_to"), end_of_day=True)
 
 
 def _scope(context: dict) -> tuple[str | None, int | None, str | None]:

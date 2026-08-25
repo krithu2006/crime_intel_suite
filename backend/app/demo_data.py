@@ -77,7 +77,11 @@ def generate_demo_csv(count: int = 2400) -> int:
     # keeping DATA_MODE=csv available for user-supplied data.
     random.seed(int(os.getenv("DEMO_SEED", "20260821")))
     CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now().replace(microsecond=0)
+    anchor = os.getenv("DEMO_ANCHOR_DATE", "2026-08-24T23:59:59")
+    try:
+        now = datetime.fromisoformat(anchor).replace(tzinfo=None, microsecond=0)
+    except ValueError as exc:
+        raise ValueError("DEMO_ANCHOR_DATE must be an ISO-8601 date or datetime") from exc
     districts = list(DISTRICT_CENTERS.items())
     crime_names = [crime[0] for crime in CRIMES]
     crime_weights = [crime[2] for crime in CRIMES]

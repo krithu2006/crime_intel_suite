@@ -101,7 +101,7 @@ export default function HotspotMap({ hotspots, loading }) {
 
   const hasData = incidentPoints.length > 0;
   const searchLabel = hasData
-    ? `${clusterMarkers.length} hotspot clusters near Bengaluru`
+    ? `${clusterMarkers.length} hotspot clusters in the current scope`
     : 'Search Karnataka crime hotspots';
 
   return (
@@ -211,9 +211,9 @@ export default function HotspotMap({ hotspots, loading }) {
           );
         })}
 
-        {clusterMarkers.length === 0 && incidentPoints.map((point, index) => (
+        {clusterMarkers.length === 0 && incidentPoints.map((point) => (
           <CircleMarker
-            key={`${point.lat}-${point.lng}-${index}`}
+            key={point.id}
             center={[point.lat, point.lng]}
             radius={4}
             pathOptions={{ color: '#2563eb', fillColor: '#38bdf8', fillOpacity: 0.75, weight: 1 }}

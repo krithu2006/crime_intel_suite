@@ -43,6 +43,7 @@ export function HorizonSelector({ value, onChange }) {
             key={d}
             type="button"
             onClick={() => onChange(d)}
+            aria-pressed={value === d}
             className={`px-2.5 py-1 text-xs font-medium transition-colors ${
               value === d
                 ? 'bg-primary-600 text-white'
@@ -108,7 +109,7 @@ export function PredictiveRiskBlock({ prediction, compact = false }) {
           <p className="text-[10px] text-slate-500 mb-0.5">Why this ward is flagged</p>
           <ul className="space-y-0.5">
             {prediction.top_factors.slice(0, 4).map((f, i) => (
-              <li key={i} className="text-[10.5px] text-slate-400 flex gap-1">
+              <li key={`${f.label}:${f.direction || ''}`} className="text-[10.5px] text-slate-400 flex gap-1">
                 <span className="text-slate-600">{i + 1}.</span> {f.label}
               </li>
             ))}

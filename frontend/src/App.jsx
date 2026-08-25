@@ -94,10 +94,12 @@ function App() {
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [notificationSeverityCounts, setNotificationSeverityCounts] = useState({});
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationRef = useRef(null);
   const [selectedAlertId, setSelectedAlertId] = useState(null);
   const selectedAlertTimer = useRef(null);
+  const analyticsRequestIds = useRef({});
 
   // View toggle: 'hotspots', 'risk', 'network', 'trends', or 'alerts'
   const [mapView, setMapView] = useState('hotspots');
@@ -207,46 +209,70 @@ function App() {
   // array. Without it, useCallback captures a stale (empty) crime type and
   // the filter silently does nothing — which was the original Crime Type bug.
   const fetchHotspots = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.hotspots || 0) + 1;
+    analyticsRequestIds.current.hotspots = requestId;
     setHotspotsLoading(true);
     const params = new URLSearchParams();
     if (dateFrom) params.set('from', dateFrom);
     if (dateTo) params.set('to', dateTo);
     if (selectedDistrict) params.set('district', selectedDistrict);
     if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/hotspots?${params}`)
       .then((res) => res.json())
-      .then((data) => { setHotspots(data); setHotspotsLoading(false); })
-      .catch(() => setHotspotsLoading(false));
-  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType]);
+      .then((data) => {
+        if (analyticsRequestIds.current.hotspots !== requestId) return;
+        setHotspots(data); setHotspotsLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.hotspots === requestId) setHotspotsLoading(false);
+      });
+  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard]);
 
   // ── Fetch escalation ──
   // Escalation is a minor-crime early-warning signal (Dispute/Vandalism/Eve
   // Teasing by definition), so it is intentionally NOT scoped by crime type.
   const fetchEscalation = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.escalation || 0) + 1;
+    analyticsRequestIds.current.escalation = requestId;
     setEscalationLoading(true);
     const params = new URLSearchParams({ period: 'monthly' });
     if (dateFrom) params.set('from', dateFrom);
     if (dateTo) params.set('to', dateTo);
     if (selectedDistrict) params.set('district', selectedDistrict);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/escalation?${params}`)
       .then((res) => res.json())
-      .then((data) => { setEscalation(data); setEscalationLoading(false); })
-      .catch(() => setEscalationLoading(false));
-  }, [dateFrom, dateTo, selectedDistrict]);
+      .then((data) => {
+        if (analyticsRequestIds.current.escalation !== requestId) return;
+        setEscalation(data); setEscalationLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.escalation === requestId) setEscalationLoading(false);
+      });
+  }, [dateFrom, dateTo, selectedDistrict, selectedWard]);
 
   // ── Fetch risk scores ──
   const fetchRiskScores = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.risk || 0) + 1;
+    analyticsRequestIds.current.risk = requestId;
     setRiskLoading(true);
     const params = new URLSearchParams();
     if (dateFrom) params.set('from', dateFrom);
     if (dateTo) params.set('to', dateTo);
     if (selectedDistrict) params.set('district', selectedDistrict);
     if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/risk-scores?${params}`)
       .then((res) => res.json())
-      .then((data) => { setRiskScores(data); setRiskLoading(false); })
-      .catch(() => setRiskLoading(false));
-  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType]);
+      .then((data) => {
+        if (analyticsRequestIds.current.risk !== requestId) return;
+        setRiskScores(data); setRiskLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.risk === requestId) setRiskLoading(false);
+      });
+  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard]);
 
   // ── Fetch predictions ──
   // The prediction anchor is the selected "To" date (or the latest data if
@@ -254,6 +280,8 @@ function App() {
   // filters are passed through so the forecast scope always matches what
   // the analyst is looking at.
   const fetchPredictions = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.predictions || 0) + 1;
+    analyticsRequestIds.current.predictions = requestId;
     setPredictionsLoading(true);
     const params = new URLSearchParams({ prediction_horizon: String(horizonDays) });
     if (dateTo) params.set('to', dateTo);
@@ -262,12 +290,19 @@ function App() {
     if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/predictions/risk?${params}`)
       .then((res) => res.json())
-      .then((data) => { setPredictions(data); setPredictionsLoading(false); })
-      .catch(() => setPredictionsLoading(false));
+      .then((data) => {
+        if (analyticsRequestIds.current.predictions !== requestId) return;
+        setPredictions(data); setPredictionsLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.predictions === requestId) setPredictionsLoading(false);
+      });
   }, [dateTo, selectedDistrict, selectedCrimeType, selectedWard, horizonDays]);
 
   // ── Fetch trends ──
   const fetchTrends = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.trends || 0) + 1;
+    analyticsRequestIds.current.trends = requestId;
     setTrendsLoading(true);
     const params = new URLSearchParams({ granularity: trendGranularity });
     if (dateFrom) params.set('from', dateFrom);
@@ -277,12 +312,19 @@ function App() {
     if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/trends?${params}`)
       .then((res) => res.json())
-      .then((data) => { setTrends(data); setTrendsLoading(false); })
-      .catch(() => setTrendsLoading(false));
+      .then((data) => {
+        if (analyticsRequestIds.current.trends !== requestId) return;
+        setTrends(data); setTrendsLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.trends === requestId) setTrendsLoading(false);
+      });
   }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard, trendGranularity]);
 
   // ── Fetch alerts (Module 6 — lazy, only while the Alerts tab is open) ──
   const fetchAlerts = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.alerts || 0) + 1;
+    analyticsRequestIds.current.alerts = requestId;
     setAlertsLoading(true);
     const params = new URLSearchParams({ granularity: trendGranularity });
     if (dateFrom) params.set('from', dateFrom);
@@ -294,8 +336,13 @@ function App() {
     if (alertStatusFilter && alertStatusFilter !== 'ACTIVE') params.set('status', alertStatusFilter);
     fetch(`${API_URL}/api/alerts?${params}`)
       .then((res) => res.json())
-      .then((data) => { setAlertsData(data); setAlertsLoading(false); })
-      .catch(() => setAlertsLoading(false));
+      .then((data) => {
+        if (analyticsRequestIds.current.alerts !== requestId) return;
+        setAlertsData(data); setAlertsLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.alerts === requestId) setAlertsLoading(false);
+      });
   }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard, trendGranularity,
       alertSeverityFilter, alertStatusFilter]);
 
@@ -308,20 +355,27 @@ function App() {
   }, []);
 
   const fetchNotifications = useCallback(() => {
+    setNotificationsLoading(true);
     fetch(`${API_URL}/api/notifications?limit=5`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Notification request failed: ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         setNotifications(data?.alerts || []);
         setNotificationSeverityCounts(data?.severity_counts || {});
         setUnreadAlertCount(data?.unread_count ?? 0);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setNotificationsLoading(false));
   }, []);
 
   // ── Fetch district/ward drilldown (Module 7 — lazy, only while that tab
   // is open, and only one of the two depending on whether a ward is picked) ──
   const fetchDistrictDrilldown = useCallback(() => {
     if (!selectedDistrict) return;
+    const requestId = (analyticsRequestIds.current.districtDrilldown || 0) + 1;
+    analyticsRequestIds.current.districtDrilldown = requestId;
     setDistrictDrilldownLoading(true);
     const params = new URLSearchParams({ granularity: trendGranularity, prediction_horizon: String(horizonDays) });
     if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
@@ -329,12 +383,19 @@ function App() {
     if (dateTo) params.set('to', dateTo);
     fetch(`${API_URL}/api/drilldown/district/${encodeURIComponent(selectedDistrict)}?${params}`)
       .then((res) => res.json())
-      .then((data) => { setDistrictDrilldown(data); setDistrictDrilldownLoading(false); })
-      .catch(() => setDistrictDrilldownLoading(false));
+      .then((data) => {
+        if (analyticsRequestIds.current.districtDrilldown !== requestId) return;
+        setDistrictDrilldown(data); setDistrictDrilldownLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.districtDrilldown === requestId) setDistrictDrilldownLoading(false);
+      });
   }, [selectedDistrict, selectedCrimeType, dateFrom, dateTo, trendGranularity, horizonDays]);
 
   const fetchWardDrilldown = useCallback(() => {
     if (!selectedWard) return;
+    const requestId = (analyticsRequestIds.current.wardDrilldown || 0) + 1;
+    analyticsRequestIds.current.wardDrilldown = requestId;
     setWardDrilldownLoading(true);
     const params = new URLSearchParams({ granularity: trendGranularity, prediction_horizon: String(horizonDays) });
     if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
@@ -343,6 +404,7 @@ function App() {
     fetch(`${API_URL}/api/drilldown/ward/${selectedWard.id}?${params}`)
       .then((res) => res.json())
       .then((data) => {
+        if (analyticsRequestIds.current.wardDrilldown !== requestId) return;
         setWardDrilldown(data);
         setWardDrilldownLoading(false);
         // Back-fill district context if the ward was selected without one
@@ -353,22 +415,32 @@ function App() {
           setSelectedWard((cur) => (cur && !cur.district ? { ...cur, district: data.district } : cur));
         }
       })
-      .catch(() => setWardDrilldownLoading(false));
+      .catch(() => {
+        if (analyticsRequestIds.current.wardDrilldown === requestId) setWardDrilldownLoading(false);
+      });
   }, [selectedWard, selectedCrimeType, dateFrom, dateTo, trendGranularity, horizonDays]);
 
   // ── Fetch network ──
   const fetchNetwork = useCallback(() => {
+    const requestId = (analyticsRequestIds.current.network || 0) + 1;
+    analyticsRequestIds.current.network = requestId;
     setNetworkLoading(true);
     const params = new URLSearchParams();
     if (dateFrom) params.set('from', dateFrom);
     if (dateTo) params.set('to', dateTo);
     if (selectedDistrict) params.set('district', selectedDistrict);
     if (selectedCrimeType) params.set('crime_type', selectedCrimeType);
+    if (selectedWard) params.set('ward_id', String(selectedWard.id));
     fetch(`${API_URL}/api/network?${params}`)
       .then((res) => res.json())
-      .then((data) => { setNetwork(data); setNetworkLoading(false); })
-      .catch(() => setNetworkLoading(false));
-  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType]);
+      .then((data) => {
+        if (analyticsRequestIds.current.network !== requestId) return;
+        setNetwork(data); setNetworkLoading(false);
+      })
+      .catch(() => {
+        if (analyticsRequestIds.current.network === requestId) setNetworkLoading(false);
+      });
+  }, [dateFrom, dateTo, selectedDistrict, selectedCrimeType, selectedWard]);
 
   // Auto-fetch on load and whenever any filter (date/district/crime type)
   // changes — the fetch callbacks are memoized on those filters, so a filter
@@ -670,7 +742,9 @@ function App() {
                       ))}
                     </div>
                     <div className="notification-dropdown__list">
-                      {notifications.length === 0 ? (
+                      {notificationsLoading ? (
+                        <p className="notification-dropdown__empty">Loading intelligence signals…</p>
+                      ) : notifications.length === 0 ? (
                         <p className="notification-dropdown__empty">You’re all caught up.</p>
                       ) : notifications.map((alert) => (
                         <button key={alert.id} type="button" className="notification-item" onClick={() => {
@@ -764,19 +838,19 @@ function App() {
           <div className="animate-fade-in space-y-6">
             {/* ── Stats Row ── */}
             <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard icon="🚨" label="Incidents" value={health.incidents?.toLocaleString() ?? '—'}
+              <StatCard icon="🚨" label="Incidents" value={hotspots?.n_incidents?.toLocaleString() ?? health.incidents?.toLocaleString() ?? '—'}
                 color="from-primary-500/20 to-primary-600/10" borderColor="border-primary-500/20" />
-              <StatCard icon="👤" label="Accused" value={health.accused?.toLocaleString() ?? '—'}
+              <StatCard icon="👤" label="Accused" value={network?.summary?.n_nodes?.toLocaleString() ?? health.accused?.toLocaleString() ?? '—'}
                 color="from-accent-cyan/20 to-accent-cyan/5" borderColor="border-cyan-500/20" />
-              <StatCard icon="📍" label="Wards" value={health.wards?.toLocaleString() ?? '—'}
+              <StatCard icon="📍" label="Wards" value={riskScores?.wards?.length?.toLocaleString() ?? health.wards?.toLocaleString() ?? '—'}
                 color="from-accent-emerald/20 to-accent-emerald/5" borderColor="border-emerald-500/20" />
               <StatCard
                 icon={mapView === 'risk' ? '🎯' : mapView === 'network' ? '🕸️' : mapView === 'trends' ? '📈' : mapView === 'alerts' ? '🚨' : mapView === 'drilldown' ? '🧭' : '🔥'}
-                label={mapView === 'risk' ? 'High-Risk Wards' : mapView === 'network' ? 'Identified Groups' : mapView === 'trends' ? 'Anomalies Detected' : mapView === 'alerts' ? 'Active Alerts' : mapView === 'drilldown' ? 'Wards Ranked' : 'Hotspot Clusters'}
+                label={mapView === 'risk' ? 'High-Risk Wards' : mapView === 'network' ? 'Identified Groups' : mapView === 'trends' ? 'Anomalies Detected' : mapView === 'alerts' ? 'Active Alerts' : mapView === 'drilldown' ? (selectedWard ? 'Selected Ward' : 'Wards Ranked') : 'Hotspot Clusters'}
                 value={mapView === 'risk'
                   ? (riskScores?.wards?.filter(w => w.risk_score >= 50).length?.toString() ?? '—')
                   : mapView === 'drilldown'
-                  ? (districtDrilldown?.ward_rankings?.length?.toString() ?? '—')
+                  ? (selectedWard ? '1' : (districtDrilldown?.ward_rankings?.length?.toString() ?? '—'))
                   : mapView === 'network'
                   ? (network?.summary?.n_communities?.toLocaleString() ?? '—')
                   : mapView === 'trends'
@@ -980,6 +1054,11 @@ function App() {
 
             {activeFeature && (
               <FeatureModal title={FEATURE_LABELS[activeFeature]} onClose={closeFeature} variant={activeFeature}>
+            {activeFeature === 'risk' && (
+              <div className="mb-4 flex justify-end">
+                <HorizonSelector value={horizonDays} onChange={setHorizonDays} />
+              </div>
+            )}
             {/* ── District Summary Card ──
                 All figures below come from `hotspots`, `riskScores`, and
                 `escalation` — the same three state objects the map, Rising
@@ -1118,6 +1197,9 @@ function App() {
                   wardData={wardDrilldown}
                   wardLoading={wardDrilldownLoading}
                   horizonDays={horizonDays}
+                  selectedCrimeType={selectedCrimeType}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
                   onGoToView={goToView}
                 />
               </div>
@@ -1314,8 +1396,8 @@ function RiskWardCard({ ward, prediction, onSelectWard }) {
       {/* Top factors as compact tags */}
       {ward.top_factors && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {ward.top_factors.map((f, i) => (
-            <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+          {ward.top_factors.map((f) => (
+            <span key={`${f.description}:${f.direction}`} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
               f.direction === 'up'
                 ? 'bg-red-500/10 text-red-300 border border-red-500/20'
                 : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
@@ -1704,7 +1786,7 @@ function AiAssistantWidget({
                 {messages.map((message, index) => {
                   const isUser = message.role === 'user';
                   return (
-                    <div key={index} className={`ai-msg-in flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                    <div key={message.id || message.ts || `${message.role}:${index}:${message.text}`} className={`ai-msg-in flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                       <div
                         className={
                           isUser
@@ -1717,9 +1799,9 @@ function AiAssistantWidget({
                       {message.role === 'assistant' && message.evidence?.length > 0 && (
                         <div className="mt-1.5 max-w-[92%] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                           <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Evidence</p>
-                          {message.evidence.map((item, i) => <p key={i} className="text-[11px] text-slate-300">• {item.label}: <span className="text-slate-100">{item.value}</span></p>)}
+                          {message.evidence.map((item) => <p key={item.label} className="text-[11px] text-slate-300">• {item.label}: <span className="text-slate-100">{item.value}</span></p>)}
                           {message.sources?.length > 0 && <p className="text-[10px] text-slate-600 mt-1">Based on: {message.sources.join(' · ')}</p>}
-                          {message.actions?.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{message.actions.map((item, i) => <button key={i} type="button" onClick={() => onNavigate?.(item.action, item)} className="rounded-md border border-primary-500/30 bg-primary-500/10 px-2 py-1 text-[10px] text-primary-200 hover:bg-primary-500/20">{item.label}</button>)}</div>}
+                          {message.actions?.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{message.actions.map((item) => <button key={`${item.action}:${item.ward_id ?? item.label}`} type="button" onClick={() => onNavigate?.(item.action, item)} className="rounded-md border border-primary-500/30 bg-primary-500/10 px-2 py-1 text-[10px] text-primary-200 hover:bg-primary-500/20">{item.label}</button>)}</div>}
                         </div>
                       )}
                       {message.ts && (

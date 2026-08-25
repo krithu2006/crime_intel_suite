@@ -25,7 +25,7 @@ import json
 import os
 import requests
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, time
 from fastapi import FastAPI, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
@@ -169,7 +169,7 @@ def list_incidents(
     if max_severity is not None:
         q = q.filter(Incident.severity <= max_severity)
     dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
+    dt_to = _parse_date(date_to, end_of_day=True)
     if dt_from:
         q = q.filter(Incident.timestamp >= dt_from)
     if dt_to:
@@ -246,6 +246,7 @@ def get_hotspots(
     min_samples: int = Query(DEFAULT_MIN_SAMPLES, ge=2, description="DBSCAN min_samples"),
     crime_type: str = Query(None, description="Optional crime type filter"),
     district: str = Query(None, description="Optional district filter"),
+    ward_id: int = Query(None, description="Optional ward ID filter"),
     db: Session = Depends(get_db),
 ):
     """
@@ -253,7 +254,7 @@ def get_hotspots(
     Hotspots shift when the time window changes — nothing is pre-computed.
     """
     dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
+    dt_to = _parse_date(date_to, end_of_day=True)
 
     result = detect_hotspots(
         db,
@@ -263,6 +264,7 @@ def get_hotspots(
         min_samples=min_samples,
         crime_type=crime_type,
         district=district,
+        ward_id=ward_id,
     )
     return result
 
@@ -305,6 +307,7 @@ def get_risk_scores(
     date_to: str = Query(None, alias="to",
                          description="End date ISO format, e.g. 2025-12-31"),
     district: str = Query(None, description="Optional district filter"),
+    ward_id: int = Query(None, description="Optional ward ID filter"),
     crime_type: str = Query(None, description="Optional crime type filter"),
     db: Session = Depends(get_db),
 ):
@@ -313,8 +316,10 @@ def get_risk_scores(
     Returns wards ranked by risk score (0-100) with plain-language explanations.
     """
     dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
-    result = compute_risk_scores(db, date_from=dt_from, date_to=dt_to, crime_type=crime_type)
+    dt_to = _parse_date(date_to, end_of_day=True)
+    result = compute_risk_scores(
+        db, date_from=dt_from, date_to=dt_to, ward_id=ward_id, crime_type=crime_type
+    )
     if district and result and "wards" in result:
         result["wards"] = [w for w in result["wards"] if w["district"] == district]
     return result
@@ -334,7 +339,7 @@ def get_risk_score(
     Compute risk score for a SINGLE ward with full SHAP explanation.
     """
     dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
+    dt_to = _parse_date(date_to, end_of_day=True)
     result = compute_risk_scores(db, date_from=dt_from, date_to=dt_to,
                                  ward_id=ward_id, crime_type=crime_type)
     if result["wards"]:
@@ -361,7 +366,7 @@ def get_predictive_risk(
     validates with a strict old-to-new temporal split, so it is a genuine
     forecast rather than an in-sample fit.
     """
-    as_of = _parse_date(date_to)
+    as_of = _parse_date(date_to, end_of_day=True)
     return predict_risk(
         db,
         district=district,
@@ -395,7 +400,7 @@ def get_trends(
         ward_id=ward_id,
         crime_type=crime_type,
         date_from=_parse_date(date_from),
-        date_to=_parse_date(date_to),
+        date_to=_parse_date(date_to, end_of_day=True),
         granularity=granularity,
     )
 
@@ -425,7 +430,7 @@ def get_alerts(
         ward_id=ward_id,
         crime_type=crime_type,
         date_from=_parse_date(date_from),
-        date_to=_parse_date(date_to),
+        date_to=_parse_date(date_to, end_of_day=True),
         granularity=granularity,
         severity=severity,
         status=status,
@@ -500,7 +505,7 @@ def get_district_drilldown_endpoint(
     """
     return get_district_drilldown(
         db, district=district, crime_type=crime_type,
-        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to, end_of_day=True),
         granularity=granularity, horizon_days=prediction_horizon,
     )
 
@@ -514,7 +519,7 @@ def get_intelligence_brief(
 ):
     """Structured, deterministic Phase 5 brief composed from drilldown outputs."""
     return generate_intelligence_brief(db, district=district, ward_id=ward_id, crime_type=crime_type,
-        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to, end_of_day=True),
         horizon_days=prediction_horizon, granularity=granularity)
 
 
@@ -535,7 +540,7 @@ def get_ward_drilldown_endpoint(
     """
     return get_ward_drilldown(
         db, ward_id=ward_id, crime_type=crime_type,
-        date_from=_parse_date(date_from), date_to=_parse_date(date_to),
+        date_from=_parse_date(date_from), date_to=_parse_date(date_to, end_of_day=True),
         granularity=granularity, horizon_days=prediction_horizon,
     )
 
@@ -563,7 +568,7 @@ def get_network(
         district=district,
         crime_type=crime_type,
         date_from=_parse_date(date_from),
-        date_to=_parse_date(date_to),
+        date_to=_parse_date(date_to, end_of_day=True),
     )
 
 
@@ -586,7 +591,7 @@ def get_network_individual(
         district=district,
         crime_type=crime_type,
         date_from=_parse_date(date_from),
-        date_to=_parse_date(date_to),
+        date_to=_parse_date(date_to, end_of_day=True),
     )
     if result is None:
         return {"error": "Individual not found", "accused_id": accused_id}
@@ -650,12 +655,15 @@ async def copilot(request: Request, db: Session = Depends(get_db)):
     return answer_copilot(db, message, payload.context or {}, payload.history or [])
 
 
-def _parse_date(s: str | None) -> datetime | None:
+def _parse_date(s: str | None, end_of_day: bool = False) -> datetime | None:
     """Parse an ISO date string or return None."""
     if not s:
         return None
     try:
-        return datetime.fromisoformat(s)
+        parsed = datetime.fromisoformat(s)
+        if end_of_day and "T" not in s and " " not in s:
+            return datetime.combine(parsed.date(), time.max)
+        return parsed
     except ValueError:
         return None
 

@@ -55,12 +55,24 @@ _WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 #  Small shared aggregations (no existing module owns these)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _crime_composition(db: Session, district=None, ward_id=None) -> list[dict]:
-    q = db.query(Incident.crime_type, func.count(Incident.id)).group_by(Incident.crime_type)
+def _apply_incident_scope(q, district=None, ward_id=None, crime_type=None, date_from=None, date_to=None):
     if district:
         q = q.filter(Incident.district == district)
     if ward_id is not None:
         q = q.filter(Incident.ward_id == ward_id)
+    if crime_type:
+        q = q.filter(Incident.crime_type == crime_type)
+    if date_from:
+        q = q.filter(Incident.timestamp >= date_from)
+    if date_to:
+        q = q.filter(Incident.timestamp <= date_to)
+    return q
+
+
+def _crime_composition(db: Session, district=None, ward_id=None, crime_type=None,
+                       date_from=None, date_to=None) -> list[dict]:
+    q = db.query(Incident.crime_type, func.count(Incident.id)).group_by(Incident.crime_type)
+    q = _apply_incident_scope(q, district, ward_id, crime_type, date_from, date_to)
     rows = q.all()
     total = sum(c for _, c in rows)
     if total == 0:
@@ -76,13 +88,14 @@ def _crime_composition(db: Session, district=None, ward_id=None) -> list[dict]:
     return composition
 
 
-def _repeat_offenders_by_ward(db: Session, district: str | None) -> dict[int, int]:
+def _repeat_offenders_by_ward(db: Session, district: str | None, crime_type=None,
+                              date_from=None, date_to=None) -> dict[int, int]:
     """One grouped query -> {ward_id: repeat-offender count}, each accused
     attributed to the ward they appear in most (so summing values gives a
     correct district-wide total with no double-counting)."""
     inc_q = db.query(Incident.id, Incident.ward_id)
-    if district:
-        inc_q = inc_q.filter(Incident.district == district)
+    inc_q = _apply_incident_scope(inc_q, district=district, crime_type=crime_type,
+                                  date_from=date_from, date_to=date_to)
     inc_ward_map = {iid: wid for iid, wid in inc_q.all()}
     if not inc_ward_map:
         return {}
@@ -114,12 +127,10 @@ def _hotspots_by_ward(clusters: list[dict]) -> dict[int, list[dict]]:
     return by_ward
 
 
-def _time_pattern(db: Session, district=None, ward_id=None) -> dict | None:
+def _time_pattern(db: Session, district=None, ward_id=None, crime_type=None,
+                  date_from=None, date_to=None) -> dict | None:
     q = db.query(Incident.timestamp)
-    if district:
-        q = q.filter(Incident.district == district)
-    if ward_id is not None:
-        q = q.filter(Incident.ward_id == ward_id)
+    q = _apply_incident_scope(q, district, ward_id, crime_type, date_from, date_to)
     timestamps = [r[0] for r in q.all()]
     if len(timestamps) < 5:
         return None
@@ -228,9 +239,10 @@ def get_district_drilldown(
         return {"status": "not_found", "district": district, "message": f"No wards found for district '{district}'."}
     ward_map = {w.id: w for w in ward_rows}
 
-    total_incidents = db.query(func.count(Incident.id)).filter(Incident.district == district)
-    if crime_type:
-        total_incidents = total_incidents.filter(Incident.crime_type == crime_type)
+    total_incidents = _apply_incident_scope(
+        db.query(func.count(Incident.id)), district=district, crime_type=crime_type,
+        date_from=date_from, date_to=date_to,
+    )
     total_incidents = total_incidents.scalar() or 0
 
     # Exactly one call each — every ward's numbers come out of these three.
@@ -238,7 +250,8 @@ def get_district_drilldown(
     trends = analyze_trends(db, district=district, crime_type=crime_type, date_from=date_from, date_to=date_to,
                              granularity=granularity)
     try:
-        risk_result = predict_risk(db, district=district, crime_type=crime_type, horizon_days=horizon_days)
+        risk_result = predict_risk(db, district=district, crime_type=crime_type,
+                                   horizon_days=horizon_days, as_of=date_to)
     except Exception:
         risk_result = None
     alerts_result = generate_alerts(db, district=district, crime_type=crime_type, date_from=date_from,
@@ -250,7 +263,7 @@ def get_district_drilldown(
     for a in alerts_result["alerts"]:
         if a.get("ward_id") is not None:
             alerts_by_ward[a["ward_id"]].append(a)
-    repeat_by_ward = _repeat_offenders_by_ward(db, district)
+    repeat_by_ward = _repeat_offenders_by_ward(db, district, crime_type, date_from, date_to)
     risk_by_ward = {p["ward_id"]: p for p in (risk_result.get("predictions", []) if risk_result else [])}
     ward_trend = _ward_trend_lookup(trends)
 
@@ -258,9 +271,10 @@ def get_district_drilldown(
     high_risk_ward_count = 0
     for wid, ward in ward_map.items():
         p = risk_by_ward.get(wid)
-        ward_incidents = db.query(func.count(Incident.id)).filter(Incident.ward_id == wid)
-        if crime_type:
-            ward_incidents = ward_incidents.filter(Incident.crime_type == crime_type)
+        ward_incidents = _apply_incident_scope(
+            db.query(func.count(Incident.id)), ward_id=wid, crime_type=crime_type,
+            date_from=date_from, date_to=date_to,
+        )
         ward_incidents = ward_incidents.scalar() or 0
 
         risk_score = p["risk_score"] if p and not p.get("insufficient_data") else None
@@ -309,7 +323,8 @@ def get_district_drilldown(
             "active_alerts": alerts_result["summary"]["total"],
             "repeat_offenders": sum(repeat_by_ward.values()),
         },
-        "crime_composition": _crime_composition(db, district=district),
+        "crime_composition": _crime_composition(db, district=district, crime_type=crime_type,
+                                                  date_from=date_from, date_to=date_to),
         "trend_summary": (
             {
                 "granularity": granularity,
@@ -350,16 +365,17 @@ def get_ward_drilldown(
         return {"status": "not_found", "ward_id": ward_id, "message": f"Ward {ward_id} not found."}
     district = ward.district
 
-    total_incidents = db.query(func.count(Incident.id)).filter(Incident.ward_id == ward_id)
-    if crime_type:
-        total_incidents = total_incidents.filter(Incident.crime_type == crime_type)
+    total_incidents = _apply_incident_scope(
+        db.query(func.count(Incident.id)), ward_id=ward_id, crime_type=crime_type,
+        date_from=date_from, date_to=date_to,
+    )
     total_incidents = total_incidents.scalar() or 0
 
     trends = analyze_trends(db, district=district, ward_id=ward_id, crime_type=crime_type,
                              date_from=date_from, date_to=date_to, granularity=granularity)
     try:
         risk_result = predict_risk(db, district=district, ward_id=ward_id, crime_type=crime_type,
-                                    horizon_days=horizon_days)
+                                    horizon_days=horizon_days, as_of=date_to)
     except Exception:
         risk_result = None
     # Default status filter (omitted) already returns only active alerts.
@@ -399,7 +415,8 @@ def get_ward_drilldown(
             "repeat_offenders": len(repeat_offenders),
         },
         "why_it_matters": why_it_matters,
-        "crime_composition": _crime_composition(db, ward_id=ward_id),
+        "crime_composition": _crime_composition(db, ward_id=ward_id, crime_type=crime_type,
+                                                  date_from=date_from, date_to=date_to),
         "trend": trends if trends["status"] != "no_data" else None,
         "risk": p,
         "alerts": active_alerts[:5],
@@ -419,7 +436,8 @@ def get_ward_drilldown(
         ],
         "repeat_offenders": repeat_offenders,
         "network_summary": network.get("summary") if network.get("summary", {}).get("n_nodes") else None,
-        "time_pattern": _time_pattern(db, ward_id=ward_id),
+        "time_pattern": _time_pattern(db, ward_id=ward_id, crime_type=crime_type,
+                                       date_from=date_from, date_to=date_to),
         "model_performance": risk_result.get("model_performance") if risk_result else None,
         "params": {
             "ward_id": ward_id, "district": district, "crime_type": crime_type,

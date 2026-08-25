@@ -89,8 +89,8 @@ export default function TrendsPanel({ trends, loading, granularity, onGranularit
           {trends.insights?.length > 0 && (
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Insights</p>
-              {trends.insights.map((line, i) => (
-                <p key={i} className="text-xs text-slate-300">• {line}</p>
+              {trends.insights.map((line) => (
+                <p key={line} className="text-xs text-slate-300">• {line}</p>
               ))}
             </div>
           )}
@@ -203,8 +203,8 @@ function TopEmergingTrends({ trends, granularity }) {
             Nothing stands out beyond the current filter's own trend.
           </div>
         ) : (
-          list.map((t, i) => (
-            <div key={i} className="emerging-trend-row rounded-xl border border-white/5 bg-white/[0.02] p-3 flex items-start gap-3">
+          list.map((t) => (
+            <div key={`${t.kind}:${t.district || 'all'}:${t.ward_id ?? 'all'}:${t.crime_type || 'all'}:${t.period || t.rank}`} className="emerging-trend-row rounded-xl border border-white/5 bg-white/[0.02] p-3 flex items-start gap-3">
               <span className="text-sm font-bold text-slate-500 w-4">{t.rank}.</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white truncate">{t.label}</p>

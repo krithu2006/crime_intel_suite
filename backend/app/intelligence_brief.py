@@ -147,7 +147,10 @@ def _brief_from_data(db: Session, data: dict, scope_type: str, district: str, wa
     headline = (f"{key_crime} activity is rising with additional intelligence signals present." if key_dev and key_dev["direction"] == "rising"
                 else "Elevated crime activity and intelligence signals require analyst attention." if priority["level"] in ("HIGH", "CRITICAL")
                 else "Crime remains relatively stable with no critical intelligence signals.")
-    time_pattern = data.get("time_pattern") or _time_pattern(db, district=district, ward_id=ward_id)
+    time_pattern = data.get("time_pattern") or _time_pattern(
+        db, district=district, ward_id=ward_id, crime_type=crime_type,
+        date_from=date_from, date_to=date_to,
+    )
     return {
         "status": "ok", "scope": {"type": scope_type, "district": district, "ward_id": ward_id,
                                     "ward_name": ward["name"] if ward else None, "name": scope_name},

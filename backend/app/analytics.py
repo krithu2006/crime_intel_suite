@@ -41,6 +41,7 @@ def detect_hotspots(
     min_samples: int = DEFAULT_MIN_SAMPLES,
     crime_type: str | None = None,
     district: str | None = None,
+    ward_id: int | None = None,
 ) -> dict:
     """
     Run DBSCAN on incidents within the given time window.
@@ -80,18 +81,21 @@ def detect_hotspots(
         q = q.filter(Incident.crime_type == crime_type)
     if district:
         q = q.filter(Incident.district == district)
+    if ward_id is not None:
+        q = q.filter(Incident.ward_id == ward_id)
 
     incidents = q.all()
     incidents_after_filtering = len(incidents)
 
     logger.warning(
         "hotspot_pipeline total_incidents_loaded=%d incidents_after_filtering=%d "
-        "filters[from=%s,to=%s,district=%s,crime_type=%s] params[eps=%.6f,min_samples=%d]",
+        "filters[from=%s,to=%s,district=%s,ward_id=%s,crime_type=%s] params[eps=%.6f,min_samples=%d]",
         total_incidents_loaded,
         incidents_after_filtering,
         date_from.isoformat() if date_from else None,
         date_to.isoformat() if date_to else None,
         district,
+        ward_id,
         crime_type,
         eps,
         min_samples,
@@ -246,6 +250,7 @@ def detect_hotspots(
 
 def _incident_point(incident: Incident) -> dict:
     return {
+        "id": incident.id,
         "lat": incident.lat,
         "lng": incident.lng,
         "crime_type": incident.crime_type,

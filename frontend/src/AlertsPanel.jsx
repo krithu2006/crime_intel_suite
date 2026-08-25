@@ -291,8 +291,8 @@ function AlertCard({ alert, selected, onStatusChange, onAlertRead, onNavigate, o
       </button>
       {expanded && alert.evidence?.length > 0 && (
         <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-3 space-y-1">
-          {alert.evidence.map((e, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
+          {alert.evidence.map((e) => (
+            <div key={e.label} className="flex items-center justify-between text-xs">
               <span className="text-slate-500">{e.label}</span>
               <span className="text-slate-200 font-medium">{String(e.value)}</span>
             </div>

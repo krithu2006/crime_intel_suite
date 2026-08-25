@@ -58,7 +58,7 @@ export default function RiskScoreMap({ riskScores, loading, predictionsByWard })
 
   const wards = riskScores?.wards || [];
   const searchLabel = wards.length > 0
-    ? `${wards.length} ward risk scores near Bengaluru`
+    ? `${wards.length} ward risk scores in the current scope`
     : 'Search Karnataka ward risk';
 
   return (
@@ -213,8 +213,8 @@ function RiskPopup({ ward, prediction }) {
       {/* Top factors as labeled bars */}
       {ward.top_factors && ward.top_factors.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {ward.top_factors.map((f, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {ward.top_factors.map((f) => (
+            <div key={`${f.label || f.description}:${f.direction}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{
                 fontSize: 10,
                 color: f.direction === 'up' ? '#dc2626' : '#16a34a',
@@ -301,8 +301,8 @@ function PredictionSection({ prediction }) {
       </p>
       {prediction.top_factors?.length > 0 && (
         <ul style={{ margin: '4px 0 0 0', paddingLeft: 14, fontSize: 10.5, color: '#64748b' }}>
-          {prediction.top_factors.slice(0, 3).map((f, i) => (
-            <li key={i}>{f.label}</li>
+          {prediction.top_factors.slice(0, 3).map((f) => (
+            <li key={f.label}>{f.label}</li>
           ))}
         </ul>
       )}

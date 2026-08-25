@@ -36,7 +36,7 @@ function daysAgo(iso) {
   return `${days} days ago`;
 }
 
-export default function WardDrilldown({ data, loading, district, ward, crimeType, onGoToView }) {
+export default function WardDrilldown({ data, loading, district, ward, crimeType, dateFrom, dateTo, onGoToView }) {
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center">
@@ -78,8 +78,8 @@ export default function WardDrilldown({ data, loading, district, ward, crimeType
         <div className="glass-card p-4 border-primary-500/20 bg-primary-500/[0.03]">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-300 mb-2">Why This Ward Needs Attention</p>
           <ul className="space-y-1">
-            {data.why_it_matters.map((line, i) => (
-              <li key={i} className="text-sm text-slate-200 flex gap-2">
+            {data.why_it_matters.map((line) => (
+              <li key={line} className="text-sm text-slate-200 flex gap-2">
                 <span className="text-primary-400">•</span> {line}
               </li>
             ))}
@@ -112,7 +112,7 @@ export default function WardDrilldown({ data, loading, district, ward, crimeType
       </div>
 
       {/* ── Recent incidents ── */}
-      <RecentIncidents district={district} wardId={ward?.id} crimeType={crimeType} />
+      <RecentIncidents district={district} wardId={ward?.id} crimeType={crimeType} dateFrom={dateFrom} dateTo={dateTo} />
 
       <p className="text-[10px] text-slate-600 italic text-center pt-1">
         For authorized analytical use. Decision-support intelligence only.
@@ -339,34 +339,50 @@ function TimePattern({ pattern }) {
 // ── Recent incidents (paginated via /api/incidents) + detail drawer ──
 const PAGE_SIZE = 10;
 
-function RecentIncidents({ district, wardId, crimeType }) {
+function RecentIncidents({ district, wardId, crimeType, dateFrom, dateTo }) {
   const [incidents, setIncidents] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     setIncidents([]);
     setLoading(true);
+    setError(false);
+    let cancelled = false;
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: '0' });
     if (district) params.set('district', district);
     if (wardId != null) params.set('ward_id', String(wardId));
     if (crimeType) params.set('crime_type', crimeType);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
     fetch(`${API_URL}/api/incidents?${params}`)
-      .then((res) => res.json())
-      .then((data) => { setIncidents(data.data || []); setTotal(data.total || 0); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [district, wardId, crimeType]);
+      .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then((data) => { if (!cancelled) { setIncidents(data.data || []); setTotal(data.total || 0); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [district, wardId, crimeType, dateFrom, dateTo]);
 
   const loadMore = () => {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(incidents.length) });
     if (district) params.set('district', district);
     if (wardId != null) params.set('ward_id', String(wardId));
     if (crimeType) params.set('crime_type', crimeType);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    setLoadMoreLoading(true);
+    setError(false);
     fetch(`${API_URL}/api/incidents?${params}`)
-      .then((res) => res.json())
-      .then((data) => setIncidents((prev) => [...prev, ...(data.data || [])]))
-      .catch(() => {});
+      .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then((data) => setIncidents((prev) => {
+        const byId = new Map(prev.map((incident) => [incident.id, incident]));
+        for (const incident of data.data || []) byId.set(incident.id, incident);
+        return [...byId.values()];
+      }))
+      .catch(() => setError(true))
+      .finally(() => setLoadMoreLoading(false));
   };
 
   return (
@@ -375,6 +391,8 @@ function RecentIncidents({ district, wardId, crimeType }) {
         <div className="py-6 flex justify-center">
           <div className="w-6 h-6 border-2 border-primary-500/30 border-t-primary-400 rounded-full animate-spin"></div>
         </div>
+      ) : error && incidents.length === 0 ? (
+        <p className="text-sm text-rose-400">Unable to load incidents. Retry by reopening this ward or using Update.</p>
       ) : incidents.length === 0 ? (
         <p className="text-sm text-slate-500 italic">No incidents found for the selected district, ward, crime type, and date range.</p>
       ) : (
@@ -408,11 +426,12 @@ function RecentIncidents({ district, wardId, crimeType }) {
             </table>
           </div>
           {incidents.length < total && (
-            <button type="button" onClick={loadMore}
-              className="mt-2 text-[11px] font-medium text-primary-300 hover:text-primary-200">
-              Load More ({total - incidents.length} remaining)
+            <button type="button" onClick={loadMore} disabled={loadMoreLoading}
+              className="mt-2 text-[11px] font-medium text-primary-300 hover:text-primary-200 disabled:opacity-50">
+              {loadMoreLoading ? 'Loading…' : `Load More (${total - incidents.length} remaining)`}
             </button>
           )}
+          {error && incidents.length > 0 && <p className="mt-2 text-[11px] text-rose-400">Unable to load more incidents. Try again.</p>}
         </>
       )}
 

@@ -453,6 +453,11 @@ def generate_alerts(
             if p["risk_level"] in RISK_ALERT_LEVELS:
                 alerts.append(_risk_alert(p, horizon_days))
 
+    # The main sustained signal can also appear in Module 5's ranked
+    # breakdown. Both normalize to the same deterministic alert ID, so retain
+    # one canonical record before summaries, notifications, and rendering.
+    alerts = list({alert["id"]: alert for alert in alerts}.values())
+
     # Enrich anomaly/sustained alerts with a matching ward's predictive risk
     # (cheap — reuses risk_by_ward computed above, no extra model calls).
     for alert in alerts:

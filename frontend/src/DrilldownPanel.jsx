@@ -32,7 +32,7 @@ export default function DrilldownPanel({
   districtsList, selectedDistrict, selectedWard,
   onSelectDistrict, onSelectWard, onClearWard, onClearToKarnataka,
   districtData, districtLoading, wardData, wardLoading,
-  horizonDays, onGoToView,
+  horizonDays, selectedCrimeType, dateFrom, dateTo, onGoToView,
 }) {
   return (
     <div className="district-intelligence space-y-5">
@@ -49,7 +49,9 @@ export default function DrilldownPanel({
           loading={wardLoading}
           district={selectedDistrict}
           ward={selectedWard}
-          crimeType={null}
+          crimeType={selectedCrimeType}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
           onGoToView={onGoToView}
         />
       ) : selectedDistrict ? (
