@@ -1053,7 +1053,14 @@ function App() {
             )}
 
             {activeFeature && (
-              <FeatureModal title={FEATURE_LABELS[activeFeature]} onClose={closeFeature} variant={activeFeature}>
+              <FeatureModal
+                title={FEATURE_LABELS[activeFeature]}
+                onClose={closeFeature}
+                variant={activeFeature}
+                activeFeature={activeFeature}
+                onSelectFeature={openFeature}
+                featureLabels={FEATURE_LABELS}
+              >
             {activeFeature === 'risk' && (
               <div className="mb-4 flex justify-end">
                 <HorizonSelector value={horizonDays} onChange={setHorizonDays} />

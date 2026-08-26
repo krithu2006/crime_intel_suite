@@ -1,7 +1,25 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-export default function FeatureModal({ title, variant, children, onClose }) {
+const DEFAULT_FEATURE_LABELS = {
+  hotspots: 'Hotspots',
+  risk: 'Predictive Risk',
+  network: 'Criminal Network',
+  trends: 'Trends & Anomalies',
+  alerts: 'Intelligence Alerts',
+  brief: 'Intelligence Brief',
+  drilldown: 'District Intelligence',
+};
+
+export default function FeatureModal({
+  title,
+  variant,
+  children,
+  onClose,
+  activeFeature,
+  onSelectFeature,
+  featureLabels = DEFAULT_FEATURE_LABELS,
+}) {
   const titleId = useId();
   const dialogRef = useRef(null);
 
@@ -24,6 +42,8 @@ export default function FeatureModal({ title, variant, children, onClose }) {
       document.body.style.paddingRight = previousPaddingRight;
     };
   }, [onClose]);
+
+  const currentFeature = activeFeature || variant;
 
   return createPortal(
     <div
@@ -49,9 +69,33 @@ export default function FeatureModal({ title, variant, children, onClose }) {
             <span aria-hidden="true">×</span>
           </button>
         </header>
+
+        {onSelectFeature && (
+          <nav className="feature-modal__nav" aria-label="Intelligence features switcher">
+            <div className="feature-modal__tabs">
+              {Object.entries(featureLabels).map(([key, label]) => {
+                const isActive = currentFeature === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onSelectFeature(key)}
+                    className={`feature-modal__tab ${isActive ? 'feature-modal__tab--active' : ''}`}
+                    aria-selected={isActive}
+                  >
+                    <span className="feature-modal__tab-dot" aria-hidden="true" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+
         <div className="feature-modal__body custom-scrollbar">{children}</div>
       </section>
     </div>,
     document.body,
   );
 }
+
