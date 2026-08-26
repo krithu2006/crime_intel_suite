@@ -686,11 +686,9 @@ function App() {
 
   const availableFrom = health?.date_range?.from?.slice(0, 10) || '';
   const availableTo = health?.date_range?.to?.slice(0, 10) || '';
-  const quickRanges = availableFrom && availableTo
-    ? [
-        { label: 'Full range', from: availableFrom, to: availableTo },
-      ]
-    : [];
+  const datasetRange = availableFrom && availableTo
+    ? `${formatDate(availableFrom)} – ${formatDate(availableTo)}`
+    : null;
 
   return (
     <div className="app-shell min-h-screen flex flex-col">
@@ -835,35 +833,41 @@ function App() {
             <p className="text-sm text-slate-500 font-mono">Error: {error}</p>
           </div>
         ) : (
-          <div className="animate-fade-in space-y-6">
-            {/* ── Stats Row ── */}
-            <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard icon="🚨" label="Incidents" value={hotspots?.n_incidents?.toLocaleString() ?? health.incidents?.toLocaleString() ?? '—'}
-                color="from-primary-500/20 to-primary-600/10" borderColor="border-primary-500/20" />
-              <StatCard icon="👤" label="Accused" value={network?.summary?.n_nodes?.toLocaleString() ?? health.accused?.toLocaleString() ?? '—'}
-                color="from-accent-cyan/20 to-accent-cyan/5" borderColor="border-cyan-500/20" />
-              <StatCard icon="📍" label="Wards" value={riskScores?.wards?.length?.toLocaleString() ?? health.wards?.toLocaleString() ?? '—'}
-                color="from-accent-emerald/20 to-accent-emerald/5" borderColor="border-emerald-500/20" />
+          <div className="animate-fade-in space-y-4">
+            {/* ── Top KPI Cards ── */}
+            <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
-                icon={mapView === 'risk' ? '🎯' : mapView === 'network' ? '🕸️' : mapView === 'trends' ? '📈' : mapView === 'alerts' ? '🚨' : mapView === 'drilldown' ? '🧭' : '🔥'}
-                label={mapView === 'risk' ? 'High-Risk Wards' : mapView === 'network' ? 'Identified Groups' : mapView === 'trends' ? 'Anomalies Detected' : mapView === 'alerts' ? 'Active Alerts' : mapView === 'drilldown' ? (selectedWard ? 'Selected Ward' : 'Wards Ranked') : 'Hotspot Clusters'}
-                value={mapView === 'risk'
-                  ? (riskScores?.wards?.filter(w => w.risk_score >= 50).length?.toString() ?? '—')
-                  : mapView === 'drilldown'
-                  ? (selectedWard ? '1' : (districtDrilldown?.ward_rankings?.length?.toString() ?? '—'))
-                  : mapView === 'network'
-                  ? (network?.summary?.n_communities?.toLocaleString() ?? '—')
-                  : mapView === 'trends'
-                  ? (trends?.anomalies?.length?.toString() ?? '—')
-                  : mapView === 'alerts'
-                  ? (alertsData?.summary?.total?.toString() ?? '—')
-                  : (hotspots?.n_clusters?.toLocaleString() ?? '—')}
-                color="from-accent-rose/20 to-accent-rose/5" borderColor="border-rose-500/20"
+                icon="🚨"
+                label="Incidents"
+                value={hotspots?.n_incidents?.toLocaleString() ?? health.incidents?.toLocaleString() ?? '—'}
+                color="from-primary-500/20 to-primary-600/10"
+                borderColor="border-primary-500/20"
+              />
+              <StatCard
+                icon="👤"
+                label="Accused"
+                value={network?.summary?.n_nodes?.toLocaleString() ?? health.accused?.toLocaleString() ?? '—'}
+                color="from-accent-cyan/20 to-accent-cyan/5"
+                borderColor="border-cyan-500/20"
+              />
+              <StatCard
+                icon="📍"
+                label="Wards"
+                value={riskScores?.wards?.length?.toLocaleString() ?? health.wards?.toLocaleString() ?? '—'}
+                color="from-accent-emerald/20 to-accent-emerald/5"
+                borderColor="border-emerald-500/20"
+              />
+              <StatCard
+                icon="🔥"
+                label="Hotspot Clusters"
+                value={hotspots?.n_clusters?.toLocaleString() ?? '—'}
+                color="from-accent-rose/20 to-accent-rose/5"
+                borderColor="border-rose-500/20"
               />
             </div>
 
-            {/* ── Controls Bar ── */}
-            <div className="dashboard-metrics grid grid-cols-2 sm:grid-cols-5 gap-3 -mt-2">
+            {/* ── Secondary Risk Summary Row ── */}
+            <div className="dashboard-metrics grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
               {[
                 ['Total clusters', hotspots?.n_clusters ?? 0, 'text-sky-300'],
                 ['High risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'High').length, 'text-rose-300'],
@@ -871,186 +875,126 @@ function App() {
                 ['Low risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'Low').length, 'text-emerald-300'],
                 ['Average risk', riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'text-violet-300'],
               ].map(([label, value, color]) => (
-                <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
-                  <p className={`mt-0.5 text-lg font-bold ${color}`}>{value}</p>
+                <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2 sm:py-2.5 flex flex-col justify-center">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">{label}</p>
+                  <p className={`mt-0.5 text-base sm:text-lg font-bold tabular-nums ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
 
+            {/* ── Intelligence Command Center Master Panel ── */}
             <div className="dashboard-controls glass-card">
               <div className="dashboard-launcher-row">
-                <p className="dashboard-control-label">Intelligence workspaces</p>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary-400 animate-pulse-slow"></span>
+                  <p className="dashboard-control-label">Intelligence Workspaces</p>
+                </div>
                 <div className="feature-launcher-grid" aria-label="Open an intelligence feature">
-                {Object.entries(FEATURE_LABELS).map(([view, label]) => (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => openFeature(view)}
-                    className={`feature-launcher ${mapView === view ? 'feature-launcher--active' : ''}`}
-                  >
-                    <span className="feature-launcher__dot" aria-hidden="true" />
-                    {label}
-                  </button>
-                ))}
+                  {Object.entries(FEATURE_LABELS).map(([view, label]) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => openFeature(view)}
+                      className={`feature-launcher ${mapView === view ? 'feature-launcher--active' : ''}`}
+                    >
+                      <span className="feature-launcher__dot" aria-hidden="true" />
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div className="dashboard-filter-row">
+                {/* District Filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-500 font-medium">District</label>
+                  <select 
+                    value={selectedDistrict} 
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                  >
+                    <option value="">All Districts</option>
+                    {districtsList.map(d => (
+                      <option key={d.id} value={d.district}>{d.district}</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* District Filter (always visible) */}
-              <div className="flex items-center gap-2 border-l border-white/10 pl-4">
-                <label className="text-xs text-slate-500">District</label>
-                <select 
-                  value={selectedDistrict} 
-                  onChange={(e) => setSelectedDistrict(e.target.value)}
-                  className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                >
-                  <option value="">All Districts</option>
-                  {districtsList.map(d => (
-                    <option key={d.id} value={d.district}>{d.district}</option>
-                  ))}
-                </select>
-              </div>
+                {/* Crime Type Filter */}
+                <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
+                  <label className="text-xs text-slate-500 font-medium">Crime Type</label>
+                  <select
+                    value={selectedCrimeType}
+                    onChange={(e) => setSelectedCrimeType(e.target.value)}
+                    className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                  >
+                    <option value="">All Types</option>
+                    {crimeTypes.map((crimeType) => <option key={crimeType} value={crimeType}>{crimeType}</option>)}
+                  </select>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-500">Crime Type</label>
-                <select
-                  value={selectedCrimeType}
-                  onChange={(e) => setSelectedCrimeType(e.target.value)}
-                  className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                >
-                  <option value="">All Types</option>
-                  {crimeTypes.map((crimeType) => <option key={crimeType} value={crimeType}>{crimeType}</option>)}
-                </select>
-              </div>
+                {/* Ward Scope Chip */}
+                {selectedWard && (
+                  <button
+                    type="button"
+                    onClick={clearWard}
+                    className="flex items-center gap-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 hover:bg-primary-500/20 transition-colors"
+                    title="Clear ward filter"
+                  >
+                    Ward: {selectedWard.name}
+                    <span aria-hidden="true">✕</span>
+                  </button>
+                )}
 
-              {/* Ward scope — set by alert navigation or drilling into a ward */}
-              {selectedWard && (
+                {/* From Date */}
+                <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
+                  <label className="text-xs text-slate-500 font-medium">From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                  />
+                </div>
+
+                {/* To Date */}
+                <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
+                  <label className="text-xs text-slate-500 font-medium">To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                  />
+                </div>
+
+                {/* Update Button */}
                 <button
                   type="button"
-                  onClick={clearWard}
-                  className="flex items-center gap-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 hover:bg-primary-500/20 transition-colors"
-                  title="Clear ward filter"
-                >
-                  Ward: {selectedWard.name}
-                  <span aria-hidden="true">✕</span>
-                </button>
-              )}
-
-              {/* Date range and refresh controls */}
-              {
-                <>
-                  <div className="flex items-center gap-2 border-l border-white/10 pl-4">
-                    <label className="text-xs text-slate-500">From</label>
-                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                      className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500">To</label>
-                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                      className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none" />
-                  </div>
-                  <button onClick={() => {
+                  onClick={() => {
                     fetchHotspots(); fetchEscalation(); fetchNetwork(); fetchRiskScores(); fetchPredictions();
                     if (mapView === 'trends') fetchTrends();
                     if (mapView === 'alerts') fetchAlerts();
                     if (mapView === 'drilldown') { if (selectedWard) fetchWardDrilldown(); else fetchDistrictDrilldown(); }
-                  }} disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
-                    className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
-                  </button>
-                </>
-              }
+                  }}
+                  disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
+                  className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
+                </button>
+              </div>
 
-              {/* Prediction horizon selector — only meaningful in Risk Score View */}
-              {mapView === 'risk' && (
-                <div className="border-l border-white/10 pl-4">
-                  <HorizonSelector value={horizonDays} onChange={setHorizonDays} />
-                </div>
-              )}
-
-              {/* Risk score info tooltip */}
-              {mapView === 'risk' && (
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Panel Footer */}
+              <div className="dashboard-panel-footer">
+                <span className="dashboard-panel-footer__note">
+                  <svg className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>
-                    Descriptive Risk Score (0-100) reflects current incident history, offender presence,
-                    socio-economic factors, and escalation trends. Predictive Risk below forecasts the next
-                    {' '}{horizonDays} days from historical patterns. Click a ward for details.
-                  </span>
-                </div>
-              )}
-
-              {/* Data provenance note — always visible across all views */}
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 italic">
-                <svg className="w-3.5 h-3.5 text-amber-500/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                This prototype uses synthetic data modeled on realistic Karnataka crime patterns. In production, this would integrate with CCTNS and existing e-FIR systems.
-              </div>
-
-              {/* Quick range buttons */}
-              <div className="flex gap-1 ml-auto">
-                {quickRanges.map(({ label, from, to }) => (
-                  <button key={label}
-                    onClick={() => { setDateFrom(from); setDateTo(to); }}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      dateFrom === from && dateTo === to
-                        ? 'bg-primary-500/30 text-primary-300 border border-primary-500/30'
-                        : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300 border border-transparent'
-                    }`}
-                  >{label}</button>
-                ))}
-              </div>
+                  Synthetic demo data · Karnataka crime patterns
+                  {datasetRange && <span className="dashboard-panel-footer__range"> · Dataset range: {datasetRange}</span>}
+                </span>
               </div>
             </div>
-
-            {!activeFeature && (
-              <section className="intelligence-overview glass-card" aria-labelledby="overview-title">
-                <div className="intelligence-overview__intro">
-                  <p className="section-eyebrow">Intelligence overview</p>
-                  <h2 id="overview-title">Ready for focused analysis</h2>
-                  <p>
-                    Current scope: <strong>{selectedDistrict || 'Karnataka'}</strong>
-                    <span aria-hidden="true"> · </span>
-                    {selectedCrimeType || 'All Crime Types'}
-                    {selectedWard ? ` · ${selectedWard.name}` : ''}
-                  </p>
-                  <button type="button" className="overview-primary-action" onClick={() => openFeature('drilldown')}>
-                    Open District Intelligence <span aria-hidden="true">→</span>
-                  </button>
-                </div>
-                <div className="overview-signals" aria-label="Quick signals">
-                  {[
-                    ['High-risk wards', riskScores?.wards?.filter((ward) => ward.risk_score >= 50).length ?? '—', 'signal-critical'],
-                    ['Active hotspots', hotspots?.n_clusters ?? '—', 'signal-info'],
-                    ['Average risk', riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'signal-predictive'],
-                    ['Unread alerts', unreadAlertCount, 'signal-warning'],
-                  ].map(([label, value, tone]) => (
-                    <div key={label} className={`overview-signal glass-interactive ${tone}`}>
-                      <p>{label}</p>
-                      <strong>{value}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="overview-quick-access">
-                  <p className="dashboard-control-label">Quick access</p>
-                  <div>
-                    {[
-                      ['risk', 'Predictive Risk'],
-                      ['trends', 'Trends'],
-                      ['alerts', 'Alerts'],
-                      ['hotspots', 'Hotspots'],
-                    ].map(([view, label]) => (
-                      <button key={view} type="button" onClick={() => openFeature(view)}>{label}<span aria-hidden="true">↗</span></button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            )}
 
             {activeFeature && (
               <FeatureModal
@@ -1238,12 +1182,6 @@ function App() {
               </FeatureModal>
             )}
 
-            {/* ── Date Range Info ── */}
-            {health.date_range && (
-              <div className="text-center text-xs text-slate-600">
-                Dataset: {formatDate(health.date_range.from)} &mdash; {formatDate(health.date_range.to)}
-              </div>
-            )}
           </div>
         )}
       </main>
@@ -1680,7 +1618,7 @@ function AiAssistantWidget({
 
   const dateRangeLabel = dateFrom && dateTo
     ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
-    : 'Full range';
+    : 'All Available Dates';
 
   const assistantOnLeft = bubblePosition.x + AI_BALL_SIZE / 2 < window.innerWidth / 2;
   const assistantOnUpperHalf = bubblePosition.y + AI_BALL_SIZE / 2 < window.innerHeight / 2;
