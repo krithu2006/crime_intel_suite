@@ -272,10 +272,10 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
   const s = network.summary || {};
 
   return (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 bg-[#04070f]">
+      <div className="network-console relative w-full h-full rounded-2xl overflow-hidden border border-white/10">
       {/* Subtle grid backdrop for the "intelligence console" feel */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        className="network-console__grid pointer-events-none absolute inset-0 opacity-[0.35]"
         style={{
           backgroundImage:
             'linear-gradient(rgba(56,189,248,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.06) 1px, transparent 1px)',
@@ -361,7 +361,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
 
       {/* ── Search (top-left) ── */}
       <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2">
-        <div className="glass-card flex items-center gap-2 px-3 py-2 shadow-xl">
+        <div className="network-control glass-card flex items-center gap-2 px-3 py-2 shadow-xl">
           <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z" />
           </svg>
@@ -393,7 +393,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
       </div>
 
       {/* ── Analysis window banner (top-center) ── */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] glass-card px-3 py-1.5 pointer-events-none hidden md:flex items-center gap-2">
+      <div className="network-control absolute top-4 left-1/2 -translate-x-1/2 z-[1000] glass-card px-3 py-1.5 pointer-events-none hidden md:flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         <p className="text-[10px] text-slate-300">
           <span className="text-slate-500 uppercase tracking-wide">Analysis window · </span>
@@ -402,7 +402,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
       </div>
 
       {/* ── Statistics card (top-right) ── */}
-      <div className="absolute top-4 right-4 z-[1000] glass-card px-4 py-3 pointer-events-none w-[178px]">
+      <div className="network-control absolute top-4 right-4 z-[1000] glass-card px-4 py-3 pointer-events-none w-[178px]">
         <p className="text-[10px] font-bold tracking-[0.15em] text-sky-300 uppercase mb-2">Network intel</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-left">
           <Stat label="Individuals" value={s.n_nodes ?? graphData.nodes.length} />
@@ -432,7 +432,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
       </div>
 
       {/* ── Legend + community list (bottom-left) ── */}
-      <div className="absolute bottom-4 left-4 z-[1000] glass-card px-3 py-2.5 max-w-[210px]">
+      <div className="network-control absolute bottom-4 left-4 z-[1000] glass-card px-3 py-2.5 max-w-[210px]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 mb-2">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
@@ -537,7 +537,7 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-3">
+      <div className="network-sidebar-state h-full flex flex-col items-center justify-center text-center p-6 gap-3">
         <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
           <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -553,7 +553,7 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
 
   if (!selectedNodeId && !person) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
+      <div className="network-sidebar-state h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
         <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mb-4">
           <svg className="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 1 0-3-6.65" />
@@ -600,11 +600,11 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
   const maxShared = Math.max(1, ...(person.connections || []).map((c) => c.shared_incidents || 0));
 
   return (
-    <div className="flex flex-col h-full view-transition">
+    <div className="network-dossier flex flex-col h-full view-transition">
       {/* Header: photo placeholder + identity */}
       <div className="flex items-start gap-3 mb-4">
         <div
-          className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 border border-white/15"
+          className="network-avatar w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 border border-white/15"
           style={{ background: `linear-gradient(135deg, ${getCommunityColor(nodeInfo.community_id)}cc, #0b1120)` }}
         >
           {initials(person.name)}
@@ -648,12 +648,12 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
 
       <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
         {/* Risk score + quick facts */}
-        <div className="glass-card p-3 rounded-xl bg-white/[0.02] flex items-center gap-3">
+        <div className="network-dossier-card glass-card p-3 rounded-xl bg-white/[0.02] flex items-center gap-3">
           <div
             className="relative w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: `conic-gradient(${scoreRing} ${score * 3.6}deg, rgba(148,163,184,0.15) 0deg)` }}
           >
-            <div className="absolute inset-[3px] rounded-full bg-surface-900 flex flex-col items-center justify-center">
+            <div className="network-risk-core absolute inset-[3px] rounded-full bg-surface-900 flex flex-col items-center justify-center">
               <span className={`text-lg font-bold leading-none ${scoreColor}`}>{score}</span>
               <span className="text-[8px] text-slate-500 uppercase tracking-wider">RFS</span>
             </div>
@@ -685,7 +685,7 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
                 type="button"
                 onClick={() => onNodeSelect(c.id)}
                 title="Open this associate's dossier"
-                className="w-full text-left p-2 rounded bg-white/[0.02] border border-white/5 transition-colors hover:bg-sky-400/10 hover:border-sky-400/25"
+                className="network-association-row w-full text-left p-2 rounded bg-white/[0.02] border border-white/5 transition-colors hover:bg-sky-400/10 hover:border-sky-400/25"
               >
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-300 truncate pr-2">{c.name}</span>
@@ -734,7 +734,7 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
 
 function Fact({ label, value, accent }) {
   return (
-    <div className="bg-surface-800/70 rounded-lg py-1.5 px-1 border border-white/5">
+    <div className="network-fact bg-surface-800/70 rounded-lg py-1.5 px-1 border border-white/5">
       <p className="text-[8px] text-slate-500 uppercase tracking-wide">{label}</p>
       <p className={`text-xs font-semibold mt-0.5 truncate ${accent ? 'text-sky-200' : 'text-slate-200'}`}>{value}</p>
     </div>
