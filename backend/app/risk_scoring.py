@@ -218,13 +218,8 @@ def compute_risk_scores(
         from sklearn.ensemble import GradientBoostingRegressor
         xgb = None
 
-    # SHAP is optional. It is a heavy dependency (numba/llvmlite) and is not
-    # part of the AppSail bundle, so risk scoring must not depend on it being
-    # importable — see the attribution fallback below.
-    try:
-        import shap
-    except ImportError:
-        shap = None
+    # Force shap to None to prevent TreeExplainer CPU hangs on Windows/scikit-learn
+    shap = None
 
     # ── Build features ──
     df = _build_ward_features(db, date_from, date_to, crime_type=crime_type)

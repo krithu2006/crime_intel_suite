@@ -486,6 +486,8 @@ def _train_and_validate(rows: list, horizon_days: int):
 
 def _top_factors(model, X_full, x_row, feature_names=FEATURE_NAMES, top_n=4):
     try:
+        # Force Exception to bypass SHAP TreeExplainer hangs on Windows/scikit-learn
+        raise Exception("SHAP disabled")
         import shap
         explainer = shap.TreeExplainer(model)
         contributions = explainer.shap_values(x_row.reshape(1, -1))[0]
