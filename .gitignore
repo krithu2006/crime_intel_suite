@@ -16,6 +16,7 @@ backend/*.so
 backend/six.py
 backend/threadpoolctl.py
 backend/typing_extensions.py
+backend.zip
 
 # Node
 frontend/node_modules/

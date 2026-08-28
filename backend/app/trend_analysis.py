@@ -431,13 +431,16 @@ def _breakdown_groups(df: pd.DataFrame, ward_id, crime_type, ward_name_map, gran
 
     if ward_id is None:
         for wid, sub in df.groupby("ward_id"):
-            run_one(sub, wid, crime_type)
+            # groupby on an integer column yields numpy.int64 keys, which
+            # FastAPI's jsonable_encoder cannot serialize on its own — cast
+            # to a plain Python int right at the source.
+            run_one(sub, int(wid), crime_type)
     if crime_type is None:
         for ct, sub in df.groupby("crime_type"):
             run_one(sub, ward_id, ct)
     if ward_id is None and crime_type is None:
         for (wid, ct), sub in df.groupby(["ward_id", "crime_type"]):
-            run_one(sub, wid, ct)
+            run_one(sub, int(wid), ct)
 
     return anomalies, trend_candidates
 
