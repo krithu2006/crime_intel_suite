@@ -108,7 +108,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* ── App Shell ── */
 .app-shell {
   position: relative;
-  isolation: isolate;
   min-height: 100vh;
   overflow-x: clip;
   color: var(--text-primary);
@@ -128,7 +127,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* ── AI-open layout: side-by-side grid ── */
 .app-shell.ai-open {
   display: grid;
-  grid-template-columns: 1fr clamp(320px, 36vw, 520px);
+  grid-template-columns: 1fr clamp(280px, 22vw, 340px);
   grid-template-rows: 100vh;
   overflow: hidden;
 }
@@ -200,6 +199,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   gap: 16px;
   padding: 16px 18px;
   border-radius: 18px;
+  overflow: hidden;
 }
 .dashboard-launcher-column {
   width: 100%;
@@ -217,41 +217,95 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   gap: 6px;
   width: 100%;
 }
-.dashboard-filters-column {
+.dashboard-workspace-column {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.dashboard-bottom-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dashboard-filter-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+.filter-group-main,
+.filter-group-dates {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 /* Desktop layout overrides (screens 1024px and wider) */
 @media (min-width: 1024px) {
   .dashboard-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .dashboard-bottom-workspace {
+    display: flex;
     flex-direction: row;
     align-items: stretch;
     gap: 24px;
   }
   .dashboard-launcher-column {
-    width: 240px;
+    width: 220px;
     flex-shrink: 0;
     border-right: 1px solid var(--glass-border);
     border-bottom: none;
     padding-right: 20px;
     padding-bottom: 0;
+    padding-top: 4px;
   }
   .feature-launcher-grid {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 14px;
+    margin-top: 8px;
   }
   .feature-launcher {
     justify-content: flex-start;
     text-align: left;
     width: 100%;
+    min-height: 48px;
+    padding: 0.65rem 0.85rem;
   }
-  .dashboard-filters-column {
+  .dashboard-workspace-column {
     flex: 1;
     justify-content: space-between;
     gap: 16px;
+    min-width: 0;
+  }
+  .dashboard-filter-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: nowrap;
+  }
+  .filter-group-dates {
+    border-left: 1px solid var(--glass-border);
+    padding-left: 16px;
+  }
+}
+
+/* Deliberate stacked layout when AI panel is open on screens less than 1400px */
+@media (min-width: 1024px) and (max-width: 1399px) {
+  .app-shell.ai-open .dashboard-filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .app-shell.ai-open .filter-group-dates {
+    border-left: none;
+    padding-left: 0;
   }
 }
 .feature-launcher {
@@ -290,7 +344,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 /* ── Filter Row ── */
-.dashboard-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.dashboard-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .dashboard-filter-row > div { min-height: 34px; display: flex; align-items: center; }
 .dashboard-filter-row label { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 .dashboard-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--glass-border); margin-top: 0; }
@@ -299,8 +353,67 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ── Feature Modal (workspace overlay) ── */
 /* Shared overlay scale: header 20, AI 80/130, feature 100/110, settings 120, incident detail 140. */
-.feature-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: clamp(18px, 3vh, 32px); background: var(--backdrop); -webkit-backdrop-filter: blur(13px) saturate(115%); backdrop-filter: blur(13px) saturate(115%); animation: backdrop-in .18s ease-out; }
-.feature-modal { z-index: 110; width: min(92vw, 1500px); height: min(88dvh, 900px); max-width: calc(100vw - 36px); max-height: calc(100dvh - 36px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--glass-border-strong); border-radius: 22px; background: linear-gradient(135deg, var(--glass-highlight), transparent 32%), var(--glass-bg-strong); box-shadow: inset 0 1px 0 var(--glass-highlight), 0 34px 90px rgba(0, 4, 26, .48), 0 0 40px rgba(43, 151, 255, .13); -webkit-backdrop-filter: blur(28px) saturate(150%); backdrop-filter: blur(28px) saturate(150%); animation: modal-in .24s cubic-bezier(.2,.9,.2,1); }
+.feature-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: clamp(18px, 3vh, 32px); background: var(--backdrop); -webkit-backdrop-filter: blur(13px) saturate(115%); backdrop-filter: blur(13px) saturate(115%); animation: backdrop-in .18s ease-out; transition: right .3s cubic-bezier(.16, 1, .3, 1); }
+.feature-modal { z-index: 110; width: min(92vw, 1500px); height: min(88dvh, 900px); max-width: calc(100% - 36px); max-height: calc(100dvh - 36px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--glass-border-strong); border-radius: 22px; background: linear-gradient(135deg, var(--glass-highlight), transparent 32%), var(--glass-bg-strong); box-shadow: inset 0 1px 0 var(--glass-highlight), 0 34px 90px rgba(0, 4, 26, .48), 0 0 40px rgba(43, 151, 255, .13); -webkit-backdrop-filter: blur(28px) saturate(150%); backdrop-filter: blur(28px) saturate(150%); animation: modal-in .24s cubic-bezier(.2,.9,.2,1); }
+
+/* Split-screen layout when AI panel is open on desktop (aligns modal backdrop to left of AI panel) */
+@media (min-width: 901px) {
+  body:has(.app-shell.ai-open) .feature-modal-backdrop {
+    right: clamp(280px, 22vw, 340px);
+  }
+}
+@media (max-width: 1280px) and (min-width: 901px) {
+  body:has(.app-shell.ai-open) .feature-modal-backdrop {
+    right: clamp(260px, 24vw, 300px);
+  }
+}
+@media (max-width: 1180px) and (min-width: 901px) {
+  body:has(.app-shell.ai-open) .feature-modal-backdrop {
+    right: clamp(240px, 25vw, 280px);
+  }
+}
+
+/* Inline workspace container */
+.inline-workspace-container {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+  min-height: 600px;
+  /* Content must never spill past the bottom of this box */
+  overflow: hidden;
+}
+.inline-workspace-body {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  /* Scroll within the box for text-heavy views (Trends, Alerts, Brief, Drilldown) */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* Map/graph views fill the body without an inner scroll */
+.inline-workspace-body .feature-workspace {
+  height: 100%;
+  overflow: hidden;
+}
+/* Text-based view wrappers (Trends, Alerts, Brief, Drilldown) must not
+   create their own min-height that causes the body to expand past its box */
+.inline-workspace-body > .view-transition {
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .inline-workspace-container {
+    height: auto;
+    min-height: auto;
+    /* On mobile, let the container grow naturally but still contain children */
+    max-height: none;
+    overflow: visible;
+  }
+  .inline-workspace-body {
+    height: auto;
+    overflow: visible;
+  }
+}
 .feature-modal__header { flex: 0 0 auto; min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 18px 13px 22px; border-bottom: 1px solid var(--glass-border); background: linear-gradient(90deg, var(--glass-bg-soft), transparent); box-shadow: inset 0 1px 0 var(--glass-highlight); }
 .feature-modal__eyebrow { margin: 0 0 3px; color: var(--accent-bright); font-size: .62rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
 .feature-modal__header h2 { margin: 0; color: var(--text-primary); font-size: 1.12rem; font-weight: 760; }
@@ -462,7 +575,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* ── Floating FAB button (visible when AI is closed) ── */
 .ai-fab-wrapper {
   position: fixed;
-  z-index: 80;
+  z-index: 120;
   width: 72px;
   height: 72px;
   touch-action: none;
@@ -514,6 +627,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   min-height: 0;
   position: sticky;
   top: 0;
+  z-index: 120;
   overflow: hidden;
   border-left: 1px solid var(--glass-border-strong);
   background: linear-gradient(160deg, var(--glass-highlight), transparent 28%), var(--glass-bg-strong);
@@ -775,13 +889,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ── Responsive ── */
 @media (max-width: 1280px) {
-  .app-shell.ai-open { grid-template-columns: 1fr clamp(300px, 38vw, 420px); }
+  .app-shell.ai-open { grid-template-columns: 1fr clamp(260px, 24vw, 300px); }
 }
 @media (max-width: 1180px) {
   .dashboard-launcher-row { grid-template-columns: 1fr; }
   .feature-launcher-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .feature-workspace, .feature-modal--network .feature-workspace { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
-  .app-shell.ai-open { grid-template-columns: 1fr clamp(280px, 40vw, 380px); }
+  .app-shell.ai-open { grid-template-columns: 1fr clamp(240px, 25vw, 280px); }
 }
 @media (max-width: 900px) {
   .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -842,7 +956,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .ai-copilot-panel {
     position: fixed;
     inset: 0;
-    z-index: 90;
+    z-index: 120;
     grid-column: auto;
     width: 100%;
     height: 100dvh;
@@ -854,3 +968,169 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .ai-assistant-fab { width: 64px; height: 64px; font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+/* ═══════════════════════════════════════════════════════════
+   MAP POP-UP / FULL-SCREEN BUTTON
+   ═══════════════════════════════════════════════════════════ */
+
+/* Trigger button — sits in the bottom-right of the map container */
+.map-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: #345170;
+  border: 1px solid rgba(51, 113, 190, 0.28);
+  border-radius: 8px;
+  background: rgba(238, 247, 255, 0.88);
+  box-shadow: 0 4px 14px rgba(30, 70, 125, 0.18);
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.map-ctrl-btn:hover {
+  color: #1268c2;
+  background: #fff;
+  border-color: rgba(37, 130, 224, 0.55);
+  box-shadow: 0 6px 20px rgba(30, 70, 125, 0.28);
+  transform: scale(1.08);
+}
+.map-ctrl-btn:active {
+  transform: scale(0.96);
+}
+
+/* Trigger button — sits in the bottom-right of the map container */
+.map-popup-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: #345170;
+  border: 1px solid rgba(51, 113, 190, 0.28);
+  border-radius: 8px;
+  background: rgba(238, 247, 255, 0.88);
+  box-shadow: 0 4px 14px rgba(30, 70, 125, 0.18);
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.map-popup-trigger:hover {
+  color: #1268c2;
+  background: #fff;
+  border-color: rgba(37, 130, 224, 0.55);
+  box-shadow: 0 6px 20px rgba(30, 70, 125, 0.28);
+  transform: scale(1.08);
+}
+.map-popup-trigger:active {
+  transform: scale(0.96);
+}
+
+/* Full-screen backdrop overlay */
+.map-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary, #030b20);
+  animation: map-popup-in .22s cubic-bezier(.2, .9, .2, 1);
+}
+
+/* Header bar inside the popup */
+.map-popup-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--glass-border, rgba(103, 190, 255, .29));
+  background: linear-gradient(90deg, var(--glass-bg-soft, rgba(22, 67, 126, .34)), transparent 70%), var(--glass-bg, rgba(10, 35, 75, .52));
+  box-shadow: inset 0 -1px 0 var(--glass-border, rgba(103, 190, 255, .29)), inset 0 1px 0 var(--glass-highlight, rgba(255,255,255,.09));
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.map-popup-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary, #f1f7ff);
+  letter-spacing: -0.01em;
+}
+
+.map-popup-hint {
+  font-size: 0.68rem;
+  color: var(--text-faint, #6f8bad);
+  padding: 2px 8px;
+  border: 1px solid var(--glass-border, rgba(103, 190, 255, .29));
+  border-radius: 6px;
+  background: var(--glass-bg-soft, rgba(22, 67, 126, .34));
+}
+
+/* Close / minimize button inside the popup header */
+.map-popup-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-secondary, #c4d5ec);
+  border: 1px solid var(--glass-border, rgba(103, 190, 255, .29));
+  border-radius: 9px;
+  background: var(--glass-bg-soft, rgba(22, 67, 126, .34));
+  box-shadow: inset 0 1px 0 var(--glass-highlight, rgba(255,255,255,.09));
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.map-popup-close:hover {
+  color: var(--text-primary, #f1f7ff);
+  border-color: var(--glass-border-strong, rgba(112, 211, 255, .48));
+  background: color-mix(in srgb, var(--accent, #4aa8ff) 16%, var(--glass-bg-soft, rgba(22,67,126,.34)));
+  transform: translateY(-1px);
+}
+
+/* Map body area inside the popup — fills remaining viewport height */
+.map-popup-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+/* Ensure the inner google-map-shell fills the popup body */
+.map-popup-body .google-map-shell {
+  height: 100%;
+  border-radius: 0 !important;
+  border: none !important;
+}
+/* Ensure Leaflet container fills the popup body */
+.map-popup-body .leaflet-container {
+  height: 100% !important;
+}
+
+/* Entrance animation */
+@keyframes map-popup-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Light theme overrides for popup */
+:root[data-theme="light"] .map-popup-trigger {
+  color: #345170;
+  background: rgba(248, 252, 255, 0.92);
+  border-color: rgba(49, 113, 207, 0.32);
+}
+:root[data-theme="light"] .map-popup-trigger:hover {
+  background: #fff;
+  border-color: rgba(14, 165, 233, 0.55);
+}
+:root[data-theme="light"] .map-popup-backdrop {
+  background: var(--bg-primary, #dcecff);
+}
+

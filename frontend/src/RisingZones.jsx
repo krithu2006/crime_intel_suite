@@ -141,7 +141,7 @@ function ClusterCard({ cluster }) {
         </div>
       </div>
 
-      <div className="mt-1.5 flex items-center gap-3 text-[10px] text-slate-500">
+      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
         <span>
           Incidents:{" "}
           <span className="text-slate-300">{cluster.incident_count}</span>

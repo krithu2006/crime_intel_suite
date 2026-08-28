@@ -9,7 +9,6 @@ import TrendsPanel from './TrendsPanel.jsx';
 import AlertsPanel from './AlertsPanel.jsx';
 import DrilldownPanel from './DrilldownPanel.jsx';
 import IntelligenceBrief from './IntelligenceBrief.jsx';
-import FeatureModal from './FeatureModal.jsx';
 import SettingsPopover from './SettingsPopover.jsx';
 
 // AppSail suspends the backend instance when it is idle, so the first request
@@ -879,106 +878,288 @@ function App() {
               </div>
 
               {/* ── Intelligence Command Center Master Panel ── */}
-              <div className="dashboard-controls glass-card">
-                <div className="dashboard-launcher-column">
-                  <div className="flex items-center gap-2">
-                    <p className="dashboard-control-label">Intelligence Workspaces</p>
-                  </div>
-                  <div className="feature-launcher-grid" aria-label="Open an intelligence feature">
-                    {Object.entries(FEATURE_LABELS).map(([view, label]) => (
-                      <button
-                        key={view}
-                        type="button"
-                        onClick={() => openFeature(view)}
-                        className={`feature-launcher ${mapView === view ? 'feature-launcher--active' : ''}`}
-                        aria-pressed={mapView === view}
-                      >
-                        {label}
-                      </button>
-                    ))}
+              <div className="dashboard-controls glass-card flex flex-col gap-4">
+                {/* ── Top Full-Width Filters Box ── */}
+                <div className="dashboard-top-filter-bar border-b border-white/10 pb-4">
+                  <div className="dashboard-filter-row custom-scrollbar pb-1">
+                    <div className="filter-group-main">
+                      {/* District Filter */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">District</label>
+                        <select
+                          value={selectedDistrict}
+                          onChange={(e) => setSelectedDistrict(e.target.value)}
+                          className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[150px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                        >
+                          <option value="">All Districts</option>
+                          {districtsList.map(d => (
+                            <option key={d.id} value={d.district}>{d.district}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Crime Type Filter */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">Crime Type</label>
+                        <select
+                          value={selectedCrimeType}
+                          onChange={(e) => setSelectedCrimeType(e.target.value)}
+                          className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[140px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                        >
+                          <option value="">All Types</option>
+                          {crimeTypes.map((crimeType) => <option key={crimeType} value={crimeType}>{crimeType}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Ward Scope Chip */}
+                      {selectedWard && (
+                        <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                          <button
+                            type="button"
+                            onClick={clearWard}
+                            className="flex items-center gap-1 rounded-full border border-primary-500/30 bg-primary-500/10 px-2.5 py-1 text-[11px] font-medium text-primary-200 hover:bg-primary-500/20 transition-colors h-[28px]"
+                            title="Clear ward filter"
+                          >
+                            Ward: {selectedWard.name}
+                            <span aria-hidden="true">✕</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="filter-group-dates">
+                      {/* From Date */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">From</label>
+                        <input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[145px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                        />
+                      </div>
+
+                      {/* To Date */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">To</label>
+                        <input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[145px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
+                        />
+                      </div>
+
+                      {/* Update Button */}
+                      <div className="border-l border-white/10 pl-3 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fetchHotspots(); fetchEscalation(); fetchNetwork(); fetchRiskScores(); fetchPredictions();
+                            if (mapView === 'trends') fetchTrends();
+                            if (mapView === 'alerts') fetchAlerts();
+                            if (mapView === 'drilldown') { if (selectedWard) fetchWardDrilldown(); else fetchDistrictDrilldown(); }
+                          }}
+                          disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
+                          className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm h-[30px] flex items-center justify-center min-w-[80px]"
+                        >
+                          {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="dashboard-filters-column">
-                  <div className="dashboard-filter-row">
-                    {/* District Filter */}
+                {/* ── Bottom Content Grid: Switcher + Workspace Content ── */}
+                <div className="dashboard-bottom-workspace">
+                  {/* Left Sidebar Switcher */}
+                  <div className="dashboard-launcher-column">
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-slate-500 font-medium">District</label>
-                      <select
-                        value={selectedDistrict}
-                        onChange={(e) => setSelectedDistrict(e.target.value)}
-                        className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                      >
-                        <option value="">All Districts</option>
-                        {districtsList.map(d => (
-                          <option key={d.id} value={d.district}>{d.district}</option>
-                        ))}
-                      </select>
+                      <p className="dashboard-control-label">Intelligence Workspaces</p>
                     </div>
-
-                    {/* Crime Type Filter */}
-                    <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
-                      <label className="text-xs text-slate-500 font-medium">Crime Type</label>
-                      <select
-                        value={selectedCrimeType}
-                        onChange={(e) => setSelectedCrimeType(e.target.value)}
-                        className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                      >
-                        <option value="">All Types</option>
-                        {crimeTypes.map((crimeType) => <option key={crimeType} value={crimeType}>{crimeType}</option>)}
-                      </select>
+                    <div className="feature-launcher-grid" aria-label="Open an intelligence feature">
+                      {Object.entries(FEATURE_LABELS).map(([view, label]) => (
+                        <button
+                          key={view}
+                          type="button"
+                          onClick={() => openFeature(view)}
+                          className={`feature-launcher ${activeFeature === view ? 'feature-launcher--active' : ''}`}
+                          aria-pressed={activeFeature === view}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
-
-                    {/* Ward Scope Chip */}
-                    {selectedWard && (
-                      <button
-                        type="button"
-                        onClick={clearWard}
-                        className="flex items-center gap-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 hover:bg-primary-500/20 transition-colors"
-                        title="Clear ward filter"
-                      >
-                        Ward: {selectedWard.name}
-                        <span aria-hidden="true">✕</span>
-                      </button>
-                    )}
-
-                    {/* From Date */}
-                    <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
-                      <label className="text-xs text-slate-500 font-medium">From</label>
-                      <input
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                      />
-                    </div>
-
-                    {/* To Date */}
-                    <div className="flex items-center gap-2 border-l border-white/10 pl-3 sm:pl-4">
-                      <label className="text-xs text-slate-500 font-medium">To</label>
-                      <input
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        className="bg-surface-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs sm:text-sm text-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
-                      />
-                    </div>
-
-                    {/* Update Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        fetchHotspots(); fetchEscalation(); fetchNetwork(); fetchRiskScores(); fetchPredictions();
-                        if (mapView === 'trends') fetchTrends();
-                        if (mapView === 'alerts') fetchAlerts();
-                        if (mapView === 'drilldown') { if (selectedWard) fetchWardDrilldown(); else fetchDistrictDrilldown(); }
-                      }}
-                      disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
-                      className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                    >
-                      {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
-                    </button>
                   </div>
+
+                  {/* Right Content Column */}
+                  <div className="dashboard-workspace-column">
+                    {/* Inline Active Workspace Area */}
+                    {activeFeature ? (
+                    <div className="inline-workspace-container animate-fade-in">
+                      {activeFeature === 'risk' && (
+                        <div className="mb-4 flex justify-end">
+                          <HorizonSelector value={horizonDays} onChange={setHorizonDays} />
+                        </div>
+                      )}
+                      {activeFeature === 'drilldown' && selectedDistrict && districtsList.find(d => d.district === selectedDistrict) && (() => {
+                        const dInfo = districtsList.find(d => d.district === selectedDistrict);
+                        const dWards = riskScores?.wards || [];
+                        const highWards = dWards.filter(w => w.risk_score >= 50).length;
+                        const avgRisk = dWards.length > 0 ? (dWards.reduce((sum, w) => sum + w.risk_score, 0) / dWards.length).toFixed(1) : '—';
+                        const topWard = dWards.length > 0 ? [...dWards].sort((a, b) => b.risk_score - a.risk_score)[0] : null;
+
+                        const dClusters = hotspots?.clusters || [];
+                        const totalIncidents = hotspots?.n_incidents ?? 0;
+                        const totalHotspots = hotspots?.n_clusters ?? 0;
+                        const crimeBreakdown = {};
+                        for (const cluster of dClusters) {
+                          for (const [crimeType, cnt] of Object.entries(cluster.crime_breakdown || {})) {
+                            crimeBreakdown[crimeType] = (crimeBreakdown[crimeType] || 0) + cnt;
+                          }
+                        }
+                        const dominantCrime = Object.entries(crimeBreakdown).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
+
+                        const escWards = escalation?.wards || [];
+                        const risingCount = escWards.filter(w => w.trending_up).length;
+                        const crimeTrend = escWards.length === 0
+                          ? '—'
+                          : risingCount > 0
+                          ? `Rising (${risingCount} zone${risingCount === 1 ? '' : 's'})`
+                          : 'Stable';
+
+                        return (
+                          <div className="district-summary-strip glass-card p-4 rounded-xl mb-4 bg-primary-900/20 border-primary-500/20 flex flex-wrap items-center justify-between gap-4 view-transition">
+                            <div>
+                              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                {selectedDistrict} District Summary
+                              </h2>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 text-xs">
+                              <div>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Total Incidents</p>
+                                <p className="font-bold text-sky-300">{totalIncidents.toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Total Hotspots</p>
+                                <p className="font-bold text-cyan-300">{totalHotspots}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Avg Risk</p>
+                                <p className="font-bold text-orange-400">{avgRisk}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Highest Risk Ward</p>
+                                <p className="font-bold text-red-400 truncate max-w-[120px]">
+                                  {topWard ? `${topWard.ward_name} (${topWard.risk_score.toFixed(0)})` : '—'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Dominant Crime</p>
+                                <p className="font-bold text-violet-300">{dominantCrime}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      <div className="inline-workspace-body custom-scrollbar">
+                        {mapView === 'brief' ? (
+                          <IntelligenceBrief brief={brief} loading={briefLoading} error={briefError} onRefresh={fetchBrief} onNavigate={(action, item) => {
+                            if (action === 'view_ward') { selectWard(item.ward_id, item.ward_name, item.district || selectedDistrict); return; }
+                            const target = { view_trend: 'trends', view_risk: 'risk', view_alerts: 'alerts', view_hotspots: 'hotspots', view_network: 'network' }[action];
+                            if (target) goToView(target);
+                          }} />
+                        ) : mapView === 'trends' ? (
+                          <div className="view-transition">
+                            <TrendsPanel
+                              trends={trends}
+                              loading={trendsLoading}
+                              granularity={trendGranularity}
+                              onGranularityChange={setTrendGranularity}
+                            />
+                          </div>
+                        ) : mapView === 'alerts' ? (
+                          <div className="view-transition">
+                            <AlertsPanel
+                              alertsData={alertsData}
+                              loading={alertsLoading}
+                              granularity={trendGranularity}
+                              onGranularityChange={setTrendGranularity}
+                              severityFilter={alertSeverityFilter}
+                              onSeverityFilterChange={setAlertSeverityFilter}
+                              statusFilter={alertStatusFilter}
+                              onStatusFilterChange={setAlertStatusFilter}
+                              onStatusChange={handleAlertStatusChange}
+                              onAlertRead={handleAlertRead}
+                              onMarkAllRead={handleMarkAllRead}
+                              unreadCount={unreadAlertCount}
+                              selectedAlertId={selectedAlertId}
+                              onNavigate={handleAlertNavigate}
+                              onSelectWard={selectWard}
+                            />
+                          </div>
+                        ) : mapView === 'drilldown' ? (
+                          <div className="view-transition">
+                            <DrilldownPanel
+                              districtsList={districtsList}
+                              selectedDistrict={selectedDistrict}
+                              selectedWard={selectedWard}
+                              onSelectDistrict={setSelectedDistrict}
+                              onSelectWard={selectWard}
+                              onClearWard={clearWard}
+                              onClearToKarnataka={clearToKarnataka}
+                              districtData={districtDrilldown}
+                              districtLoading={districtDrilldownLoading}
+                              wardData={wardDrilldown}
+                              wardLoading={wardDrilldownLoading}
+                              horizonDays={horizonDays}
+                              selectedCrimeType={selectedCrimeType}
+                              dateFrom={dateFrom}
+                              dateTo={dateTo}
+                              onGoToView={goToView}
+                            />
+                          </div>
+                        ) : (
+                          <div className={`analysis-workspace feature-workspace feature-workspace--${mapView}`}>
+                            {/* Map/Graph takes 2/3 */}
+                            <div className="map-stage view-transition">
+                              {mapView === 'hotspots'
+                                ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
+                                : mapView === 'risk'
+                                ? <RiskScoreMap riskScores={riskScores} loading={riskLoading} predictionsByWard={predictionsByWard} />
+                                : <NetworkGraph
+                                  network={network}
+                                  loading={networkLoading}
+                                  selectedNodeId={selectedNodeId}
+                                  onNodeSelect={setSelectedNodeId}
+                                  dateFrom={dateFrom}
+                                  dateTo={dateTo}
+                                />
+                              }
+                            </div>
+
+                            {/* Side panel takes 1/3 */}
+                            <div className="intelligence-sidebar glass-card p-4 sm:p-5 view-transition">
+                              {sidePanel}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center text-slate-500 border border-dashed border-white/10 rounded-xl my-4">
+                      <svg className="w-12 h-12 text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <p className="text-sm font-medium text-slate-400">No active workspace selected</p>
+                      <p className="text-xs text-slate-600 mt-1 max-w-xs">Select an intelligence workspace from the menu on the left to begin your analysis.</p>
+                    </div>
+                  )}
 
                   {/* Panel Footer */}
                   <div className="dashboard-panel-footer">
@@ -992,192 +1173,7 @@ function App() {
                   </div>
                 </div>
               </div>
-
-              {activeFeature && (
-                <FeatureModal
-                  title={FEATURE_LABELS[activeFeature]}
-                  onClose={closeFeature}
-                  variant={activeFeature}
-                  activeFeature={activeFeature}
-                  onSelectFeature={openFeature}
-                  featureLabels={FEATURE_LABELS}
-                >
-                {activeFeature === 'risk' && (
-                  <div className="mb-4 flex justify-end">
-                    <HorizonSelector value={horizonDays} onChange={setHorizonDays} />
-                  </div>
-                )}
-                {/* ── District Summary Card ──
-                    All figures below come from `hotspots`, `riskScores`, and
-                    `escalation` — the same three state objects the map, Rising
-                    Zones panel, and top stats row consume, all fetched with the
-                    same selectedDistrict/date/crime-type filters. Nothing here
-                    is recomputed from a different dataset. */}
-                {activeFeature === 'drilldown' && selectedDistrict && districtsList.find(d => d.district === selectedDistrict) && (() => {
-                  const dInfo = districtsList.find(d => d.district === selectedDistrict);
-                  const dWards = riskScores?.wards || [];
-                  const highWards = dWards.filter(w => w.risk_score >= 50).length;
-                  const avgRisk = dWards.length > 0 ? (dWards.reduce((sum, w) => sum + w.risk_score, 0) / dWards.length).toFixed(1) : '—';
-                  const topWard = dWards.length > 0 ? [...dWards].sort((a, b) => b.risk_score - a.risk_score)[0] : null;
-
-                  const dClusters = hotspots?.clusters || [];
-                  const totalIncidents = hotspots?.n_incidents ?? 0;
-                  const totalHotspots = hotspots?.n_clusters ?? 0;
-                  const crimeBreakdown = {};
-                  for (const cluster of dClusters) {
-                    for (const [crimeType, cnt] of Object.entries(cluster.crime_breakdown || {})) {
-                      crimeBreakdown[crimeType] = (crimeBreakdown[crimeType] || 0) + cnt;
-                    }
-                  }
-                  const dominantCrime = Object.entries(crimeBreakdown).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
-
-                  const escWards = escalation?.wards || [];
-                  const risingCount = escWards.filter(w => w.trending_up).length;
-                  const crimeTrend = escWards.length === 0
-                    ? '—'
-                    : risingCount > 0
-                    ? `Rising (${risingCount} zone${risingCount === 1 ? '' : 's'})`
-                    : 'Stable';
-
-                  return (
-                    <div className="district-summary-strip glass-card p-5 rounded-xl mb-6 bg-primary-900/20 border-primary-500/20 flex flex-wrap items-center justify-between gap-5 view-transition">
-                      <div>
-                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                          <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          {selectedDistrict} District Summary
-                        </h2>
-                        <p className="text-xs text-slate-400 mt-1">Viewing aggregated stats for the selected district.</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-6">
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Total Incidents</p>
-                          <p className="text-lg font-bold text-sky-300">{totalIncidents.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Total Hotspots</p>
-                          <p className="text-lg font-bold text-cyan-300">{totalHotspots}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Avg Risk</p>
-                          <p className="text-lg font-bold text-orange-400">{avgRisk}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Highest Risk Ward</p>
-                          <p className="text-lg font-bold text-red-400 truncate max-w-[140px]">
-                            {topWard ? `${topWard.ward_name} (${topWard.risk_score.toFixed(0)})` : '—'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Dominant Crime</p>
-                          <p className="text-lg font-bold text-violet-300">{dominantCrime}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Crime Trend</p>
-                          <p className={`text-lg font-bold ${risingCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{crimeTrend}</p>
-                        </div>
-                        <div className="socio-economic-inset border-l border-white/10 pl-6 hidden lg:block">
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Socio-Economic</p>
-                          <p className="text-xs text-slate-300 mt-1 leading-5">
-                            Unemployment: <span className="font-semibold text-amber-300">{formatMetric(dInfo.unemployment_rate)}%</span>
-                            <span className="text-slate-600"> &middot; </span>
-                            Literacy: <span className="font-semibold text-emerald-300">{formatMetric(dInfo.literacy_rate)}%</span>
-                            <span className="text-slate-600"> &middot; </span>
-                            Density: <span className="font-semibold text-sky-300">{formatMetric(dInfo.population_density, 0)}/km²</span>
-                          </p>
-                          <p className="text-[10px] text-slate-500 italic mt-1">Contextual model features; their contribution appears in ward explanations. Correlation does not imply causation.</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* ── Map + Side Panel (with view transition) ── */}
-                {mapView === 'brief' ? (
-                  <IntelligenceBrief brief={brief} loading={briefLoading} error={briefError} onRefresh={fetchBrief} onNavigate={(action, item) => {
-                    if (action === 'view_ward') { selectWard(item.ward_id, item.ward_name, item.district || selectedDistrict); return; }
-                    const target = { view_trend: 'trends', view_risk: 'risk', view_alerts: 'alerts', view_hotspots: 'hotspots', view_network: 'network' }[action];
-                    if (target) goToView(target);
-                  }} />
-                ) : mapView === 'trends' ? (
-                  <div className="view-transition">
-                    <TrendsPanel
-                      trends={trends}
-                      loading={trendsLoading}
-                      granularity={trendGranularity}
-                      onGranularityChange={setTrendGranularity}
-                    />
-                  </div>
-                ) : mapView === 'alerts' ? (
-                  <div className="view-transition">
-                    <AlertsPanel
-                      alertsData={alertsData}
-                      loading={alertsLoading}
-                      granularity={trendGranularity}
-                      onGranularityChange={setTrendGranularity}
-                      severityFilter={alertSeverityFilter}
-                      onSeverityFilterChange={setAlertSeverityFilter}
-                      statusFilter={alertStatusFilter}
-                      onStatusFilterChange={setAlertStatusFilter}
-                      onStatusChange={handleAlertStatusChange}
-                      onAlertRead={handleAlertRead}
-                      onMarkAllRead={handleMarkAllRead}
-                      unreadCount={unreadAlertCount}
-                      selectedAlertId={selectedAlertId}
-                      onNavigate={handleAlertNavigate}
-                      onSelectWard={selectWard}
-                    />
-                  </div>
-                ) : mapView === 'drilldown' ? (
-                  <div className="view-transition">
-                    <DrilldownPanel
-                      districtsList={districtsList}
-                      selectedDistrict={selectedDistrict}
-                      selectedWard={selectedWard}
-                      onSelectDistrict={setSelectedDistrict}
-                      onSelectWard={selectWard}
-                      onClearWard={clearWard}
-                      onClearToKarnataka={clearToKarnataka}
-                      districtData={districtDrilldown}
-                      districtLoading={districtDrilldownLoading}
-                      wardData={wardDrilldown}
-                      wardLoading={wardDrilldownLoading}
-                      horizonDays={horizonDays}
-                      selectedCrimeType={selectedCrimeType}
-                      dateFrom={dateFrom}
-                      dateTo={dateTo}
-                      onGoToView={goToView}
-                    />
-                  </div>
-                ) : (
-                  <div className={`analysis-workspace feature-workspace feature-workspace--${mapView}`}>
-                    {/* Map/Graph takes 2/3 */}
-                    <div className="map-stage view-transition">
-                      {mapView === 'hotspots'
-                        ? <HotspotMap hotspots={hotspots} loading={hotspotsLoading} />
-                        : mapView === 'risk'
-                        ? <RiskScoreMap riskScores={riskScores} loading={riskLoading} predictionsByWard={predictionsByWard} />
-                        : <NetworkGraph
-                          network={network}
-                          loading={networkLoading}
-                          selectedNodeId={selectedNodeId}
-                          onNodeSelect={setSelectedNodeId}
-                          dateFrom={dateFrom}
-                          dateTo={dateTo}
-                        />
-                      }
-                    </div>
-
-                    {/* Side panel takes 1/3 — consistent padding/rounding */}
-                    <div className="intelligence-sidebar glass-card p-4 sm:p-5 view-transition">
-                      {sidePanel}
-                    </div>
-                  </div>
-                )}
-                </FeatureModal>
-              )}
+            </div>
 
             </div>
           )}
@@ -1455,7 +1451,7 @@ function AiFabButton({ onOpen }) {
       <button
         type="button"
         className="ai-assistant-fab"
-        aria-label="Open AI Copilot"
+        aria-label="Open AI Mitra"
         onPointerDown={handlePointerDown}
         onClick={() => { if (!dragRef.current.moved) onOpen(); }}
       >
@@ -1591,13 +1587,13 @@ function AiCopilotPanel({
     : 'All Available Dates';
 
   return (
-    <aside className="ai-copilot-panel" aria-label="AI Copilot workspace">
+    <aside className="ai-copilot-panel" aria-label="AI Mitra workspace">
       {/* ── Panel Header ── */}
       <div className="ai-panel-header">
         <div className="ai-panel-header__identity">
           <div className="ai-panel-header__icon" aria-hidden="true">✦</div>
           <div className="min-w-0">
-            <p className="ai-panel-header__title">AI Copilot</p>
+            <p className="ai-panel-header__title">AI Mitra</p>
             <p className="ai-panel-header__subtitle">Evidence-grounded intelligence analysis</p>
           </div>
         </div>
@@ -1610,7 +1606,7 @@ function AiCopilotPanel({
               New Chat
             </button>
           )}
-          <button type="button" className="ai-panel-close" onClick={onClose} aria-label="Close AI Copilot">
+          <button type="button" className="ai-panel-close" onClick={onClose} aria-label="Close AI Mitra">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1624,7 +1620,7 @@ function AiCopilotPanel({
           <div className="ai-empty-state">
             {/* Welcome */}
             <p className="ai-welcome-text">
-              Hi — I'm your AI Copilot. Ask about risk patterns, trends, alerts,
+              Hi — I'm your AI Mitra. Ask about risk patterns, trends, alerts,
               hotspots, incidents, offender networks, or the current intelligence brief.
             </p>
 
@@ -1739,7 +1735,7 @@ function AiCopilotPanel({
             onKeyDown={handleKeyDown}
             disabled={aiLoading}
             rows={1}
-            placeholder="Ask about hotspots, risks or offenders…"
+            placeholder="Ask..."
             className="ai-panel-textarea"
           />
           <button
