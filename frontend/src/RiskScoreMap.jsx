@@ -283,6 +283,7 @@ function RiskPopup({ ward, prediction }) {
 }
 
 function PredictionSection({ prediction }) {
+  const { t } = useTranslation();
   const headingStyle = {
     fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
     color: '#64748b', margin: '10px 0 4px 0', borderTop: '1px solid #e2e8f0', paddingTop: 8,
@@ -291,27 +292,27 @@ function PredictionSection({ prediction }) {
   if (!prediction || prediction.insufficient_data) {
     return (
       <div>
-        <p style={headingStyle}>Predictive Risk</p>
+        <p style={headingStyle}>{t('predictiveRisk')}</p>
         <p style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>
-          {prediction?.message || 'Insufficient historical data for reliable prediction.'}
+          {prediction?.message || t('insufficientPredictionData')}
         </p>
       </div>
     );
   }
 
   const scoreColor = riskGradient(prediction.risk_score);
-  const trendArrow = prediction.trend === 'rising' ? '↑ Rising' : prediction.trend === 'falling' ? '↓ Falling' : '→ Stable';
+  const trendArrow = prediction.trend === 'rising' ? `↑ ${t('rising')}` : prediction.trend === 'falling' ? `↓ ${t('falling')}` : `→ ${t('stable')}`;
 
   return (
     <div>
-      <p style={headingStyle}>Predictive Risk · Next {prediction.prediction_horizon_days}d</p>
+      <p style={headingStyle}>{t('predictiveRisk')} · {t('nextDays').replace('{days}', prediction.prediction_horizon_days)}</p>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
         <span style={{ fontWeight: 800, fontSize: 22, color: scoreColor }}>{Math.round(prediction.risk_score)}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: scoreColor }}>{prediction.risk_level} risk</span>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: scoreColor }}>{t(prediction.risk_level?.toLowerCase() || 'low')}</span>
       </div>
       <p style={{ fontSize: 11, color: '#475569', margin: '0 0 2px 0' }}>
-        Expected incidents: <strong>{prediction.predicted_incidents?.toFixed(1)}</strong>
-        {'  ·  '}Confidence: <strong>{Math.round(prediction.confidence * 100)}%</strong>
+        {t('expectedIncidents')}: <strong>{prediction.predicted_incidents?.toFixed(1)}</strong>
+        {'  ·  '}{t('confidence')}: <strong>{Math.round(prediction.confidence * 100)}%</strong>
         {'  ·  '}{trendArrow}
       </p>
       {prediction.top_factors?.length > 0 && (
@@ -320,7 +321,7 @@ function PredictionSection({ prediction }) {
         </ul>
       )}
       <p style={{ fontSize: 9.5, color: '#94a3b8', fontStyle: 'italic', margin: '6px 0 0 0' }}>
-        Decision-support prediction based on historical patterns. Requires analyst validation.
+        {t('predictionDisclaimer')}
       </p>
     </div>
   );

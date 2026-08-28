@@ -1070,30 +1070,30 @@ function AppContent() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                {selectedDistrict} District Summary
+                                {selectedDistrict} {t('districtIntelligence')}
                               </h2>
                             </div>
                             <div className="flex flex-wrap items-center gap-4 text-xs">
                               <div>
-                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Total Incidents</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">{t('incidents')}</p>
                                 <p className="font-bold text-sky-300">{totalIncidents.toLocaleString()}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Total Hotspots</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">{t('hotspotClusters')}</p>
                                 <p className="font-bold text-cyan-300">{totalHotspots}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Avg Risk</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">{t('averageRisk')}</p>
                                 <p className="font-bold text-orange-400">{avgRisk}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Highest Risk Ward</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">{t('highRisk')}</p>
                                 <p className="font-bold text-red-400 truncate max-w-[120px]">
                                   {topWard ? `${topWard.ward_name} (${topWard.risk_score.toFixed(0)})` : '—'}
                                 </p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-slate-500 uppercase font-semibold">Dominant Crime</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-semibold">{t('crimeType')}</p>
                                 <p className="font-bold text-violet-300">{dominantCrime}</p>
                               </div>
                             </div>

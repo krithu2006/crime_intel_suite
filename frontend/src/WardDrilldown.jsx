@@ -1,12 +1,7 @@
-/**
- * WardDrilldown — Module 7 ward-level view. Every card here is a thin
- * presentation layer over GET /api/drilldown/ward/{id} (drilldown.py),
- * which itself only orchestrates Modules 1-4 — nothing here recomputes
- * risk, trend, anomaly, or network data.
- */
 import { useEffect, useState } from 'react';
 import { API_URL } from './config.js';
 import { riskLevelMeta } from './PredictiveRisk.jsx';
+import { useTranslation } from './LanguageContext.jsx';
 
 const SEVERITY_BADGE = {
   CRITICAL: 'bg-red-500/20 text-red-300 border border-red-500/30',
@@ -37,19 +32,21 @@ function daysAgo(iso) {
 }
 
 export default function WardDrilldown({ data, loading, district, ward, crimeType, dateFrom, dateTo, onGoToView }) {
+  const { t } = useTranslation();
+
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-primary-500/30 border-t-primary-400 rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-400">Building ward intelligence...</p>
+          <p className="text-sm text-slate-400">{t('districtIntelligence')}...</p>
         </div>
       </div>
     );
   }
 
   if (!data) {
-    return <div className="glass-card p-6 text-center text-slate-500 text-sm">Could not load ward intelligence. Try Update.</div>;
+    return <div className="glass-card p-6 text-center text-slate-500 text-sm">{t('districtIntelligence')}</div>;
   }
 
   if (data.status === 'not_found') {
@@ -57,26 +54,26 @@ export default function WardDrilldown({ data, loading, district, ward, crimeType
   }
 
   const s = data.summary;
-  const level = s.risk_level ? riskLevelMeta(s.risk_level) : null;
+  const level = s.risk_level ? riskLevelMeta(s.risk_level, t) : null;
 
   return (
     <div className="space-y-5">
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Kpi label="Incidents" value={s.incidents} color="text-white" />
-        <Kpi label="Predictive Risk"
+        <Kpi label={t('incidents')} value={s.incidents} color="text-white" />
+        <Kpi label={t('predictiveRisk')}
           value={s.risk_score != null ? `${Math.round(s.risk_score)}` : '—'}
           sub={s.risk_level ? s.risk_level.toUpperCase() : 'No data'}
           color={level ? level.text : 'text-slate-500'} />
-        <Kpi label="Active Alerts" value={s.active_alerts} color={s.active_alerts > 0 ? 'text-rose-400' : 'text-slate-300'} />
-        <Kpi label="Hotspots" value={s.hotspots} color={s.hotspots > 0 ? 'text-orange-400' : 'text-slate-300'} />
-        <Kpi label="Repeat Offenders" value={s.repeat_offenders} color={s.repeat_offenders > 0 ? 'text-violet-400' : 'text-slate-300'} />
+        <Kpi label={t('totalAlerts')} value={s.active_alerts} color={s.active_alerts > 0 ? 'text-rose-400' : 'text-slate-300'} />
+        <Kpi label={t('hotspots')} value={s.hotspots} color={s.hotspots > 0 ? 'text-orange-400' : 'text-slate-300'} />
+        <Kpi label={t('repeatOffender')} value={s.repeat_offenders} color={s.repeat_offenders > 0 ? 'text-violet-400' : 'text-slate-300'} />
       </div>
 
       {/* ── Why this ward matters ── */}
       {data.why_it_matters?.length > 0 && (
         <div className="glass-card p-4 border-primary-500/20 bg-primary-500/[0.03]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-300 mb-2">Why This Ward Needs Attention</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-300 mb-2">{t('whyFlagged')}</p>
           <ul className="space-y-1">
             {data.why_it_matters.map((line) => (
               <li key={line} className="text-sm text-slate-200 flex gap-2">

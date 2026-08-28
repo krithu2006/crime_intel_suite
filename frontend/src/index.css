@@ -516,7 +516,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .feature-workspace .intelligence-sidebar { overflow: hidden; }
 .feature-modal--network .feature-workspace { grid-template-columns: minmax(0, 2.2fr) minmax(310px, 1fr); }
 .feature-modal--network .map-stage > div { height: 100%; }
-.network-console { background: #04070f; border-color: var(--glass-border) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 14px 30px rgba(0, 6, 31, .22); }
+.network-console { background: #fff !important; border-color: #cbd5e1 !important; box-shadow: 0 14px 30px rgba(14, 116, 144, .12); }
 .network-control { color: var(--text-primary); }
 .network-control input { color: var(--text-primary) !important; }
 .network-sidebar-state, .network-dossier { color: var(--text-primary); }
@@ -525,7 +525,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .network-association-row:hover { border-color: var(--glass-border-strong) !important; background: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
 
 :root[data-theme="light"] .feature-modal--network .feature-modal__body { background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(218,237,255,.22)); }
-:root[data-theme="light"] .feature-modal--network .network-console { background: linear-gradient(135deg, rgba(248,252,255,.92), rgba(224,239,255,.82)); border-color: rgba(49,113,207,.30) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 14px 28px rgba(28,76,145,.16); }
+:root[data-theme="light"] .feature-modal--network .network-console { background: #fff !important; border-color: rgba(14,165,233,.32) !important; box-shadow: 0 14px 28px rgba(14,116,144,.12); }
 :root[data-theme="light"] .feature-modal--network .network-console__grid { opacity: .7 !important; }
 :root[data-theme="light"] .feature-modal--network .network-control { background: linear-gradient(135deg, rgba(255,255,255,.82), rgba(218,237,255,.58)) !important; border-color: rgba(49,113,207,.28) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 8px 20px rgba(28,76,145,.12) !important; }
 :root[data-theme="light"] .feature-modal--network .network-avatar { border-color: rgba(13,35,69,.10) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 8px 18px rgba(28,76,145,.15); }
@@ -1245,4 +1245,3 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 :root[data-theme="light"] .map-popup-backdrop {
   background: var(--bg-primary, #dcecff);
 }
-

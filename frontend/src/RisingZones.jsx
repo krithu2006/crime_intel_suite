@@ -1,14 +1,18 @@
+import { useTranslation } from './LanguageContext.jsx';
+
 /**
  * RisingZones — Panel listing hotspot clusters ranked by computed risk score.
  */
 export default function RisingZones({ hotspots, loading }) {
+  const { t } = useTranslation();
+
   if (loading) {
     return (
       <div className="glass-card p-6 h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-accent-amber/30 border-t-accent-amber rounded-full animate-spin"></div>
           <p className="text-sm text-slate-400">
-            Calculating hotspot risk scores...
+            {t('hotspotClusters')}...
           </p>
         </div>
       </div>
@@ -20,7 +24,7 @@ export default function RisingZones({ hotspots, loading }) {
   if (clusters.length === 0) {
     return (
       <div className="glass-card p-6 text-center text-slate-500">
-        No hotspot cluster data available.
+        {t('noHotspotsFound')}
       </div>
     );
   }
@@ -45,16 +49,16 @@ export default function RisingZones({ hotspots, loading }) {
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-            Rising Zones
+            {t('risingZones')}
           </h3>
 
           <p className="text-xs text-slate-500 mt-0.5">
-            Hotspot clusters ranked by calculated risk score
+            {t('hotspotClustersRanked')}
           </p>
         </div>
 
         <div className="badge bg-rose-500/20 text-rose-300 border border-rose-500/30">
-          {highRiskClusters.length} high risk
+          {highRiskClusters.length} {t('highRisk')}
         </div>
       </div>
 

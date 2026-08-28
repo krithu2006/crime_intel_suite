@@ -7,6 +7,7 @@
  */
 import { useMemo, useState } from 'react';
 import WardDrilldown from './WardDrilldown.jsx';
+import { useTranslation } from './LanguageContext.jsx';
 
 const RISK_BADGE = {
   critical: 'bg-red-500/20 text-red-300 border border-red-500/30',
@@ -20,13 +21,6 @@ const SEVERITY_BADGE = {
   MEDIUM: 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30',
   LOW: 'bg-sky-500/20 text-sky-300 border border-sky-500/30',
 };
-
-const SORT_OPTIONS = [
-  { value: 'priority', label: 'Priority' },
-  { value: 'risk', label: 'Risk' },
-  { value: 'incidents', label: 'Incidents' },
-  { value: 'alerts', label: 'Alerts' },
-];
 
 export default function DrilldownPanel({
   districtsList, selectedDistrict, selectedWard,
@@ -70,6 +64,7 @@ export default function DrilldownPanel({
 }
 
 function Breadcrumb({ district, ward, onClearToKarnataka, onClearWard }) {
+  const { t } = useTranslation();
   return (
     <div className="district-breadcrumb flex items-center gap-2 text-sm glass-card px-4 py-3">
       <button
@@ -77,7 +72,7 @@ function Breadcrumb({ district, ward, onClearToKarnataka, onClearWard }) {
         onClick={onClearToKarnataka}
         className={district ? 'text-slate-400 hover:text-white transition-colors' : 'text-white font-semibold'}
       >
-        Karnataka
+        {t('karnatakaState')}
       </button>
       {district && (
         <>
@@ -102,11 +97,12 @@ function Breadcrumb({ district, ward, onClearToKarnataka, onClearWard }) {
 }
 
 function DistrictSelector({ districtsList, onSelectDistrict }) {
+  const { t } = useTranslation();
   return (
     <div className="district-selector glass-card p-8 text-center">
-      <p className="text-base font-semibold text-slate-300 mb-1">Select a District to Explore</p>
+      <p className="text-base font-semibold text-slate-300 mb-1">{t('selectDistrict')}</p>
       <p className="text-sm text-slate-500 mb-5">
-        Choose a district to see its intelligence overview — incidents, hotspots, risk, alerts and repeat offenders.
+        {t('districtIntelligence')} — {t('incidents')}, {t('hotspots')}, {t('predictiveRisk')}, {t('intelligenceAlerts')}.
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-w-3xl mx-auto">
         {districtsList.map((d) => (
@@ -125,11 +121,19 @@ function DistrictSelector({ districtsList, onSelectDistrict }) {
 }
 
 function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
+  const { t } = useTranslation();
   const [sortBy, setSortBy] = useState('priority');
+
+  const sortOptions = [
+    { value: 'priority', label: t('sortPriority') },
+    { value: 'risk', label: t('sortRisk') },
+    { value: 'incidents', label: t('sortIncidents') },
+    { value: 'alerts', label: t('sortAlerts') },
+  ];
 
   const rankings = useMemo(() => {
     const list = data?.ward_rankings || [];
-    if (sortBy === 'priority') return list; // backend order = risk, severity, volume
+    if (sortBy === 'priority') return list;
     if (sortBy === 'risk') return [...list].sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
     if (sortBy === 'incidents') return [...list].sort((a, b) => b.incidents - a.incidents);
     if (sortBy === 'alerts') return [...list].sort((a, b) => b.active_alerts - a.active_alerts);
@@ -141,14 +145,14 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
       <div className="h-64 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-primary-500/30 border-t-primary-400 rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-400">Building district intelligence...</p>
+          <p className="text-sm text-slate-400">{t('districtIntelligence')}...</p>
         </div>
       </div>
     );
   }
 
   if (!data) {
-    return <div className="glass-card p-6 text-center text-slate-500 text-sm">Could not load district intelligence. Try Update.</div>;
+    return <div className="glass-card p-6 text-center text-slate-500 text-sm">{t('districtIntelligence')}</div>;
   }
 
   if (data.status === 'not_found') {
@@ -160,18 +164,17 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
   return (
     <div className="space-y-6">
       <div className="district-hero">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">District intelligence</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">{t('districtIntelligence')}</p>
         <h2 className="text-2xl sm:text-3xl font-bold text-white mt-1">{district}</h2>
-        <p className="text-sm text-slate-500 mt-1">A focused view of current risk, activity, and ward priorities.</p>
       </div>
 
       {/* KPI cards */}
       <div className="district-kpis grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Kpi label="Total Incidents" value={s.incidents.toLocaleString()} color="text-white" />
-        <Kpi label="Active Hotspots" value={s.active_hotspots} color={s.active_hotspots > 0 ? 'text-orange-400' : 'text-slate-300'} />
-        <Kpi label="High-Risk Wards" value={s.high_risk_wards} color={s.high_risk_wards > 0 ? 'text-red-400' : 'text-slate-300'} />
-        <Kpi label="Active Alerts" value={s.active_alerts} color={s.active_alerts > 0 ? 'text-rose-400' : 'text-slate-300'} />
-        <Kpi label="Repeat Offenders" value={s.repeat_offenders} color={s.repeat_offenders > 0 ? 'text-violet-400' : 'text-slate-300'} />
+        <Kpi label={t('incidents')} value={s.incidents.toLocaleString()} color="text-white" />
+        <Kpi label={t('hotspotClusters')} value={s.active_hotspots} color={s.active_hotspots > 0 ? 'text-orange-400' : 'text-slate-300'} />
+        <Kpi label={t('highRisk')} value={s.high_risk_wards} color={s.high_risk_wards > 0 ? 'text-red-400' : 'text-slate-300'} />
+        <Kpi label={t('totalAlerts')} value={s.active_alerts} color={s.active_alerts > 0 ? 'text-rose-400' : 'text-slate-300'} />
+        <Kpi label={t('repeatOffender')} value={s.repeat_offenders} color={s.repeat_offenders > 0 ? 'text-violet-400' : 'text-slate-300'} />
       </div>
 
       {/* Crime composition + trend summary */}
@@ -183,29 +186,28 @@ function DistrictView({ district, data, loading, onSelectWard, horizonDays }) {
       {/* Ward rankings table */}
       <div className="district-rankings glass-card p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ward Priorities</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t('wardRankings')}</p>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Sort by</label>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
               className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none">
-              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
         </div>
 
         {rankings.length === 0 ? (
-          <p className="text-sm text-slate-500 italic py-4 text-center">No wards found for this district.</p>
+          <p className="text-sm text-slate-500 italic py-4 text-center">{t('noRiskScoresFound')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-slate-500 text-xs border-b border-white/10">
-                  <th className="text-left font-medium py-2 pr-3">Ward</th>
-                  <th className="text-right font-medium py-2 pr-3">Incidents</th>
-                  <th className="text-left font-medium py-2 pr-3">Risk</th>
-                  <th className="text-left font-medium py-2 pr-3">Trend</th>
-                  <th className="text-right font-medium py-2 pr-3">Alerts</th>
-                  <th className="text-right font-medium py-2">Hotspots</th>
+                  <th className="text-left font-medium py-2 pr-3">{t('selectWard')}</th>
+                  <th className="text-right font-medium py-2 pr-3">{t('incidents')}</th>
+                  <th className="text-left font-medium py-2 pr-3">{t('riskLevel')}</th>
+                  <th className="text-left font-medium py-2 pr-3">{t('trendStatus')}</th>
+                  <th className="text-right font-medium py-2 pr-3">{t('totalAlerts')}</th>
+                  <th className="text-right font-medium py-2">{t('hotspots')}</th>
                 </tr>
               </thead>
               <tbody>

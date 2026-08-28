@@ -1,15 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-
-const DEFAULT_FEATURE_LABELS = {
-  hotspots: 'Hotspots',
-  risk: 'Predictive Risk',
-  network: 'Criminal Network',
-  trends: 'Trends & Anomalies',
-  alerts: 'Intelligence Alerts',
-  brief: 'Intelligence Brief',
-  drilldown: 'District Intelligence',
-};
+import { useTranslation } from './LanguageContext.jsx';
 
 export default function FeatureModal({
   title,
@@ -18,10 +9,23 @@ export default function FeatureModal({
   onClose,
   activeFeature,
   onSelectFeature,
-  featureLabels = DEFAULT_FEATURE_LABELS,
+  featureLabels,
 }) {
+  const { t } = useTranslation();
   const titleId = useId();
   const dialogRef = useRef(null);
+
+  const defaultLabels = {
+    hotspots: t('hotspots'),
+    risk: t('predictiveRisk'),
+    network: t('criminalNetwork'),
+    trends: t('trendsAnomalies'),
+    alerts: t('intelligenceAlerts'),
+    brief: t('intelligenceBrief'),
+    drilldown: t('districtIntelligence'),
+  };
+
+  const labels = featureLabels || defaultLabels;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -62,10 +66,10 @@ export default function FeatureModal({
       >
         <header className="feature-modal__header">
           <div>
-            <p className="feature-modal__eyebrow">Intelligence workspace</p>
+            <p className="feature-modal__eyebrow">{t('intelligenceWorkspaces')}</p>
             <h2 id={titleId}>{title}</h2>
           </div>
-          <button type="button" className="feature-modal__close" onClick={onClose} aria-label={`Close ${title}`}>
+          <button type="button" className="feature-modal__close" onClick={onClose} aria-label="Close">
             <span aria-hidden="true">×</span>
           </button>
         </header>
@@ -73,7 +77,7 @@ export default function FeatureModal({
         {onSelectFeature && (
           <nav className="feature-modal__nav" aria-label="Intelligence features switcher">
             <div className="feature-modal__tabs">
-              {Object.entries(featureLabels).map(([key, label]) => {
+              {Object.entries(labels).map(([key, label]) => {
                 const isActive = currentFeature === key;
                 return (
                   <button
