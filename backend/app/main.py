@@ -60,6 +60,7 @@ class AiChatRequest(BaseModel):
 
 class CopilotRequest(BaseModel):
     message: str
+    language: str | None = None
     context: dict | None = None
     history: list[dict] | None = None
 
@@ -649,10 +650,16 @@ async def copilot(request: Request, db: Session = Depends(get_db)):
         payload = CopilotRequest.model_validate_json(await request.body())
     except ValidationError:
         return {"answer": "I could not read that request. Please ask an intelligence question.", "evidence": [], "actions": [], "scope": {}, "sources": []}
+    context = payload.context or {}
+    # Accept the language both at the request root and in context.  Keeping it
+    # in one authoritative place prevents an English default when a client
+    # submits only the root-level field.
+    if payload.language in {"en", "kn", "hi"}:
+        context = {**context, "language": payload.language}
     message = (payload.message or "").strip()
     if not message:
-        return {"answer": "Ask about risk, trends, alerts, hotspots, incidents, offenders, networks, or the current intelligence brief.", "evidence": [], "actions": [], "scope": payload.context or {}, "sources": []}
-    return answer_copilot(db, message, payload.context or {}, payload.history or [])
+        return {"answer": "Ask about risk, trends, alerts, hotspots, incidents, offenders, networks, or the current intelligence brief.", "evidence": [], "actions": [], "scope": context, "sources": []}
+    return answer_copilot(db, message, context, payload.history or [])
 
 
 def _parse_date(s: str | None, end_of_day: bool = False) -> datetime | None:

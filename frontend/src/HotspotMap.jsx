@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import MapPopupButton from './MapPopupButton.jsx';
+import { useTranslation } from './LanguageContext.jsx';
 
 // ── Heatmap layer ──────────────────────────────────────────────────────────
 function HeatmapLayer({ points, options = {} }) {
@@ -84,6 +85,7 @@ function MapCtrlBtn({ onClick, title, children }) {
 
 // ── Inner map content (shared between inline and popup) ────────────────────
 function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
+  const { t } = useTranslation();
   const center = [14.5, 76.2];
   const [leafletMap, setLeafletMap] = useState(null);
   const onMap = useCallback((m) => setLeafletMap(m), []);
@@ -94,8 +96,8 @@ function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
 
   const hasData = incidentPoints.length > 0;
   const searchLabel = hasData
-    ? `${clusterMarkers.length} hotspot clusters in the current scope`
-    : 'Search Karnataka crime hotspots';
+    ? `${clusterMarkers.length} ${t('searchHotspotsScope')}`
+    : t('searchHotspotsPlaceholder');
 
   return (
     <div className="google-map-shell relative w-full h-full overflow-hidden border border-white/10">
@@ -114,8 +116,8 @@ function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
-            <p className="text-sm font-medium text-slate-400">No hotspots found</p>
-            <p className="text-xs text-slate-600 mt-1">Try adjusting the date range to include more incidents.</p>
+            <p className="text-sm font-medium text-slate-400">{t('noHotspotsFound')}</p>
+            <p className="text-xs text-slate-600 mt-1">{t('noHotspotsHint')}</p>
           </div>
         </div>
       )}
@@ -201,15 +203,15 @@ function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
 
       {/* Map / Satellite toggle */}
       <div className="google-map-layers absolute left-4 top-20 z-[1000]">
-        <button className={mapStyle === 'map' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('map')}>Map</button>
-        <button className={mapStyle === 'satellite' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('satellite')}>Satellite</button>
+        <button className={mapStyle === 'map' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('map')}>{t('mapStyleMap')}</button>
+        <button className={mapStyle === 'satellite' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('satellite')}>{t('mapStyleSatellite')}</button>
       </div>
 
       {/* Legend */}
       <div className="google-map-card absolute bottom-8 left-4 z-[1000] px-4 py-3">
-        <p className="text-xs font-semibold text-slate-700 mb-2">Cluster Severity</p>
+        <p className="text-xs font-semibold text-slate-700 mb-2">{t('clusterSeverity')}</p>
         <div className="flex items-center gap-3 text-xs text-slate-600">
-          {[['#22c55e', 'Low'], ['#f59e0b', 'Med'], ['#ef4444', 'High']].map(([color, label]) => (
+          {[['#22c55e', t('low')], ['#f59e0b', t('med')], ['#ef4444', t('high')]].map(([color, label]) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
               {label}
@@ -222,7 +224,7 @@ function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
       {hotspots && (
         <div className="google-map-card absolute right-4 top-4 z-[1000] hidden px-4 py-3 sm:block">
           <p className="text-xs font-semibold text-slate-700">
-            {hotspots.n_clusters} clusters &middot; {hotspots.n_incidents} incidents
+            {hotspots.n_clusters} {t('clustersCount')} &middot; {hotspots.n_incidents} {t('incidentsCount')}
           </p>
         </div>
       )}
@@ -244,7 +246,7 @@ function HotspotMapInner({ hotspots, loading, mapStyle, setMapStyle }) {
         </MapCtrlBtn>
 
         {/* Full Screen Pop-up */}
-        <MapPopupButton title="Hotspot Map">
+        <MapPopupButton title={t('hotspots')}>
           {() => (
             <HotspotMapInner
               hotspots={hotspots}

@@ -28,6 +28,16 @@ INTENTS = ("SUMMARY", "RISK", "TREND", "ALERT", "HOTSPOT", "NETWORK", "OFFENDER"
 SUPPORTED_ACTIONS = {"view_brief", "view_district", "view_ward", "view_trend", "view_risk", "view_alerts", "view_hotspots", "view_network"}
 
 
+def _localized_level(value: Any, lang: str) -> str:
+    """Translate dashboard status words that otherwise leak into AI output."""
+    value = str(value or "").lower()
+    labels = {
+        "kn": {"critical": "ಗಂಭೀರ", "high": "ಹೆಚ್ಚಿನ", "medium": "ಮಧ್ಯಮ", "low": "ಕಡಿಮೆ", "rising": "ಹೆಚ್ಚುತ್ತಿದೆ", "falling": "ಕಡಿಮೆಯಾಗುತ್ತಿದೆ", "stable": "ಸ್ಥಿರ"},
+        "hi": {"critical": "गंभीर", "high": "उच्च", "medium": "मध्यम", "low": "निम्न", "rising": "बढ़ता हुआ", "falling": "घटता हुआ", "stable": "स्थिर"},
+    }
+    return labels.get(lang, {}).get(value, value.upper())
+
+
 def route_intent(message: str) -> str:
     q = message.lower()
     if any(x in q for x in ("cricket", "football", "weather", "stock price", "recipe", "movie review")): return "OUT_OF_SCOPE"
@@ -35,13 +45,13 @@ def route_intent(message: str) -> str:
     if "which ward" in q and any(x in q for x in ("attention", "priority", "focus")): return "SUMMARY"
     if any(x in q for x in ("why", "what should i inspect", "next", "follow-up")) and "alert" not in q and "risk" not in q:
         return "FOLLOW_UP" if any(x in q for x in ("inspect", "next", "follow-up")) else "RISK"
-    if any(x in q for x in ("risk", "predict", "future", "attention", "priority", "high risk")): return "RISK"
-    if any(x in q for x in ("trend", "changed", "change", "rising", "increasing", "baseline", "anomal")): return "TREND"
-    if any(x in q for x in ("alert", "warning")): return "ALERT"
-    if any(x in q for x in ("hotspot", "cluster", "where")): return "HOTSPOT"
-    if any(x in q for x in ("network", "connected", "connector", "community", "linked")): return "NETWORK"
-    if any(x in q for x in ("offender", "accused", "repeat")): return "OFFENDER"
-    if any(x in q for x in ("incident", "happened", "recent", "latest")): return "INCIDENT"
+    if any(x in q for x in ("risk", "predict", "future", "attention", "priority", "high risk", "ಅಪಾಯ", "ಮುನ್ಸೂಚನೆ", "जोखिम", "पूर्वानुमान")): return "RISK"
+    if any(x in q for x in ("trend", "changed", "change", "rising", "increasing", "baseline", "anomal", "ಪ್ರವೃತ್ತ", "ಬದಲಾವಣೆ", "ट्रेंड", "परिवर्तन", "बढ़")): return "TREND"
+    if any(x in q for x in ("alert", "warning", "ಎಚ್ಚರ", "अलर्ट", "चेतावनी")): return "ALERT"
+    if any(x in q for x in ("hotspot", "cluster", "where", "ಹಾಟ್‌ಸ್ಪಾಟ್", "ಹಾಟ್ ಸ್ಪಾಟ್", "हॉटस्पॉट")): return "HOTSPOT"
+    if any(x in q for x in ("network", "connected", "connector", "community", "linked", "ಜಾಲ", "नेटवर्क", "जुड़")): return "NETWORK"
+    if any(x in q for x in ("offender", "accused", "repeat", "ಅಪರಾಧಿ", "ಆರೋಪಿ", "अपराधी", "आरोपी")): return "OFFENDER"
+    if any(x in q for x in ("incident", "happened", "recent", "latest", "ಘಟನೆ", "अपराध", "घटना")): return "INCIDENT"
     if any(x in q for x in ("summar", "important", "intelligence picture", "what's here", "what is here")): return "SUMMARY"
     return "GENERAL_ANALYTICS"
 
@@ -141,109 +151,207 @@ def _find_compare_wards(db: Session, message: str, district: str | None) -> list
     return matches[:2] if len(matches) >= 2 else []
 
 
-def _fallback(message: str, evidence: dict, db: Session) -> tuple[str, list[dict]]:
+def _fallback(message: str, evidence: dict, db: Session, lang: str = "en") -> tuple[str, list[dict]]:
     intent, scope = evidence["intent"], evidence["scope"]
     name = scope.get("district") or "the selected scope"
     actions = []
-    if intent in ("SUMMARY", "FOLLOW_UP", "GENERAL_ANALYTICS"):
-        b = evidence.get("brief") or {}
-        if b.get("status") == "selection_required":
-            return "Select a district or ward first so I can ground the summary in the available intelligence analytics.", []
-        p = b.get("priority", {})
-        answer = f"{b.get('scope', {}).get('name', name)} has {p.get('level', 'available')} priority ({p.get('score', '—')}/100). {b.get('headline', 'No consolidated intelligence brief is available.') }"
-        if b.get("why_it_matters"): answer += " " + " ".join(b["why_it_matters"][:2])
-        actions = b.get("analytical_followups", [])
-    elif intent == "RISK":
-        ps = (evidence.get("risk") or {}).get("predictions", [])
-        p = ps[0] if ps else None
-        answer = (f"The model estimates {p['risk_score']}/100 {p['risk_level'].upper()} risk over the next {p['prediction_horizon_days']} days." if p and not p.get("insufficient_data") else "There is not enough historical data to generate a reliable prediction for this scope.")
-        actions = [_action("View Risk", "view_risk")]
-    elif intent == "TREND":
-        t = evidence.get("trend") or {}; candidates = t.get("anomalies") or t.get("top_emerging_trends") or []
-        top = max(candidates, key=lambda x: abs(x.get("percentage_change", x.get("change_percent", 0)) or 0), default=None)
-        answer = "No significant trend anomaly was detected for this scope." if not top else f"{top.get('crime_type') or 'Crime'} is showing a {top.get('direction', 'rising')} signal with a {top.get('percentage_change', top.get('change_percent', '—'))}% change."
-        actions = [_action("View Trend", "view_trend")]
-    elif intent == "ALERT":
-        a = evidence.get("alerts") or {}; s = a.get("summary", {})
-        answer = f"There are {s.get('total', 0)} active intelligence alerts in this scope, including {s.get('critical', 0)} critical and {s.get('high', 0)} high-severity alerts."
-        actions = [_action("View Alerts", "view_alerts")]
-    elif intent == "HOTSPOT":
-        h = evidence.get("hotspots") or {}; answer = f"{h.get('n_clusters', 0)} active hotspot clusters were detected from {h.get('n_incidents', 0)} incidents."; actions = [_action("View Hotspots", "view_hotspots")]
-    elif intent in ("NETWORK", "OFFENDER"):
-        n = evidence.get("network") or {}; s = n.get("summary") or {}; answer = f"The network contains {s.get('n_nodes', 0)} linked offenders across {s.get('n_communities', 0)} communities."; actions = [_action("Open Network", "view_network")]
-    elif intent == "INCIDENT":
-        rows = evidence.get("incidents") or []; answer = "No recent incidents were found." if not rows else "Recent records: " + "; ".join(f"{r['crime_type']} ({r['severity']}/10)" for r in rows[:3])
-    elif intent == "COMPARE":
-        rows = evidence.get("comparison") or []
-        ranked = sorted(rows, key=lambda x: (x.get("brief", {}).get("priority", {}).get("score") or -1), reverse=True)
-        if not ranked:
-            answer = "I could not reliably identify two wards to compare."
+
+    if lang == "kn":
+        if intent in ("SUMMARY", "FOLLOW_UP", "GENERAL_ANALYTICS"):
+            b = evidence.get("brief") or {}
+            if b.get("status") == "selection_required":
+                return "ವಿಶ್ಲೇಷಣೆ ನಡೆಸಲು ದಯವಿಟ್ಟು ಮೊದಲಿಗೆ ಜಿಲ್ಲೆ ಅಥವಾ ವಾರ್ಡ್ ಆಯ್ಕೆ ಮಾಡಿ.", []
+            p = b.get("priority", {})
+            answer = f"{b.get('scope', {}).get('name', name)} ಜಿಲ್ಲೆಗೆ {p.get('score', '—')}/100 ಪ್ರಮುಖತೆಯ ಅಂಕವಿದೆ. ಲಭ್ಯವಿರುವ ವಿಶ್ಲೇಷಣೆಯ ಆಧಾರದಲ್ಲಿ ಆದ್ಯತೆಯ ಕ್ರಮಗಳನ್ನು ಪರಿಶೀಲಿಸಿ."
+            actions = b.get("analytical_followups", [])
+        elif intent == "RISK":
+            ps = (evidence.get("risk") or {}).get("predictions", [])
+            p = ps[0] if ps else None
+            answer = (f"ಮುಂದಿನ {p['prediction_horizon_days']} ದಿನಗಳಲ್ಲಿ ಮಾದರಿಯು {p['risk_score']}/100 {_localized_level(p['risk_level'], lang)} ಅಪಾಯವನ್ನು ಅಂದಾಜಿಸಿದೆ." if p and not p.get("insufficient_data") else "ಈ ವ್ಯಾಪ್ತಿಗೆ ವಿಶ್ವಾಸಾರ್ಹ ಮುನ್ಸೂಚನೆ ನೀಡಲು ಪರ್ಯಾಪ್ತ ಮಾಹಿತಿ ಲಭ್ಯವಿಲ್ಲ.")
+            actions = [_action("ಅಪಾಯ ವೀಕ್ಷಿಸಿ", "view_risk")]
+        elif intent == "TREND":
+            t = evidence.get("trend") or {}; candidates = t.get("anomalies") or t.get("top_emerging_trends") or []
+            top = max(candidates, key=lambda x: abs(x.get("percentage_change", x.get("change_percent", 0)) or 0), default=None)
+            answer = "ಈ ಅವಧಿಯಲ್ಲಿ ಯಾವುದೇ ಗಮನಾರ್ಹ ಅಪರಾಧ ವ್ಯತ್ಯಾಸ ಕಂಡುಬಂದಿಲ್ಲ." if not top else f"{top.get('crime_type') or 'ಅಪರಾಧ'} ಪ್ರವೃತ್ತಿಯು {top.get('percentage_change', top.get('change_percent', '—'))}% ಬದಲಾವಣೆಯನ್ನು ತೋರಿಸುತ್ತಿದೆ."
+            actions = [_action("ಟ್ರೆಂಡ್ ವೀಕ್ಷಿಸಿ", "view_trend")]
+        elif intent == "ALERT":
+            a = evidence.get("alerts") or {}; s = a.get("summary", {})
+            answer = f"ಈ ವ್ಯಾಪ್ತಿಯಲ್ಲಿ ಒಟ್ಟು {s.get('total', 0)} ಸಕ್ರಿಯ ಎಚ್ಚರಿಕೆಗಳಿವೆ, ಇದರಲ್ಲಿ {s.get('critical', 0)} ಗಂಭೀರ ಮತ್ತು {s.get('high', 0)} ಹೆಚ್ಚಿನ ತೀವ್ರತೆಯ ಎಚ್ಚರಿಕೆಗಳಿವೆ."
+            actions = [_action("ಎಚ್ಚರಿಕೆಗಳನ್ನು ವೀಕ್ಷಿಸಿ", "view_alerts")]
+        elif intent == "HOTSPOT":
+            h = evidence.get("hotspots") or {}; answer = f"{h.get('n_incidents', 0)} ಘಟನೆಗಳಿಂದ ಒಟ್ಟು {h.get('n_clusters', 0)} ಹಾಟ್‌ಸ್ಪಾಟ್‌ಗಳನ್ನು ಗುರುತಿಸಲಾಗಿದೆ."; actions = [_action("ಹಾಟ್‌ಸ್ಪಾಟ್‌ಗಳನ್ನು ವೀಕ್ಷಿಸಿ", "view_hotspots")]
+        elif intent in ("NETWORK", "OFFENDER"):
+            n = evidence.get("network") or {}; s = n.get("summary") or {}; answer = f"ಅಪರಾಧ ಜಾಲವು {s.get('n_communities', 0)} ಗುಂಪುಗಳಲ್ಲಿ {s.get('n_nodes', 0)} ಅಪರಾಧಿಗಳನ್ನು ಒಳಗೊಂಡಿದೆ."; actions = [_action("ಜಾಲ ತೆರೆಯಿರಿ", "view_network")]
+        elif intent == "INCIDENT":
+            rows = evidence.get("incidents") or []; answer = "ಇತ್ತೀಚಿನ ಘಟನೆಗಳು ಕಂಡುಬಂದಿಲ್ಲ." if not rows else "ಇತ್ತೀಚಿನ ಅಪರಾಧಗಳು: " + "; ".join(f"{r['crime_type']} ({r['severity']}/10)" for r in rows[:3])
+        elif intent == "OUT_OF_SCOPE":
+            answer = "ನಾನು ಅಪರಾಧ ವಿಶ್ಲೇಷಣೆ, ಟ್ರೆಂಡ್‌ಗಳು, ಎಚ್ಚರಿಕೆಗಳು, ಅಪಾಯಗಳು ಮತ್ತು ಹಾಟ್‌ಸ್ಪಾಟ್‌ಗಳ ಬಗ್ಗೆ ಮಾಹಿತಿ ನೀಡಬಲ್ಲೆ."
         else:
-            answer = "Comparison: " + "; ".join(f"{x['ward']} has {x.get('brief', {}).get('priority', {}).get('level', 'unavailable')} priority ({x.get('brief', {}).get('priority', {}).get('score', '—')}/100)" for x in ranked)
-            top = ranked[0]; scope = evidence.get("scope", {})
-            actions = [_action(f"Open {top['ward']}", "view_ward", ward_id=top.get("brief", {}).get("scope", {}).get("ward_id"), ward_name=top["ward"], district=scope.get("district"))]
-    elif intent == "OUT_OF_SCOPE":
-        answer = "The Intelligence Copilot is designed for the Crime Intel Suite analytical dataset. I can help with risk, trends, alerts, hotspots, incidents, offenders, networks, and intelligence briefs."
+            answer = "ಅಪರಾಧ ವಿಶ್ಲೇಷಣೆ, ಟ್ರೆಂಡ್‌ಗಳು, ಎಚ್ಚರಿಕೆಗಳು, ಅಪಾಯಗಳು, ಹಾಟ್‌ಸ್ಪಾಟ್‌ಗಳು ಮತ್ತು ಅಪರಾಧಿ ಜಾಲದ ಬಗ್ಗೆ ಕೇಳಿ."
+        return answer, [a for a in actions if a]
+
+    elif lang == "hi":
+        if intent in ("SUMMARY", "FOLLOW_UP", "GENERAL_ANALYTICS"):
+            b = evidence.get("brief") or {}
+            if b.get("status") == "selection_required":
+                return "विश्लेषण के लिए कृपया पहले एक जिला या वार्ड चुनें।", []
+            p = b.get("priority", {})
+            answer = f"{b.get('scope', {}).get('name', name)} का प्राथमिकता स्कोर {p.get('score', '—')}/100 है। उपलब्ध विश्लेषण के आधार पर प्राथमिक कार्रवाई की समीक्षा करें।"
+            actions = b.get("analytical_followups", [])
+        elif intent == "RISK":
+            ps = (evidence.get("risk") or {}).get("predictions", [])
+            p = ps[0] if ps else None
+            answer = (f"मॉडल अगले {p['prediction_horizon_days']} दिनों में {p['risk_score']}/100 {_localized_level(p['risk_level'], lang)} जोखिम का अनुमान लगाता है।" if p and not p.get("insufficient_data") else "इस क्षेत्र के लिए विश्वसनीय पूर्वानुमान उत्पन्न करने के लिए पर्याप्त डेटा उपलब्ध नहीं है।")
+            actions = [_action("जोखिम देखें", "view_risk")]
+        elif intent == "TREND":
+            t = evidence.get("trend") or {}; candidates = t.get("anomalies") or t.get("top_emerging_trends") or []
+            top = max(candidates, key=lambda x: abs(x.get("percentage_change", x.get("change_percent", 0)) or 0), default=None)
+            answer = "इस क्षेत्र के लिए कोई महत्वपूर्ण प्रवृत्ति विसंगति नहीं पाई गई।" if not top else f"{top.get('crime_type') or 'अपराध'} में {top.get('percentage_change', top.get('change_percent', '—'))}% परिवर्तन देखा गया है।"
+            actions = [_action("ट्रेंड देखें", "view_trend")]
+        elif intent == "ALERT":
+            a = evidence.get("alerts") or {}; s = a.get("summary", {})
+            answer = f"इस क्षेत्र में कुल {s.get('total', 0)} सक्रिय खुफिया अलर्ट हैं, जिनमें {s.get('critical', 0)} गंभीर और {s.get('high', 0)} उच्च-तीव्रता वाले अलर्ट शामिल हैं।"
+            actions = [_action("अलर्ट देखें", "view_alerts")]
+        elif intent == "HOTSPOT":
+            h = evidence.get("hotspots") or {}; answer = f"{h.get('n_incidents', 0)} घटनाओं से {h.get('n_clusters', 0)} हॉटस्पॉट क्लस्टर पाए गए।"; actions = [_action("हॉटस्पॉट देखें", "view_hotspots")]
+        elif intent in ("NETWORK", "OFFENDER"):
+            n = evidence.get("network") or {}; s = n.get("summary") or {}; answer = f"नेटवर्क में {s.get('n_communities', 0)} समूहों में {s.get('n_nodes', 0)} जुड़े अपराधी शामिल हैं।"; actions = [_action("नेटवर्क खोलें", "view_network")]
+        elif intent == "INCIDENT":
+            rows = evidence.get("incidents") or []; answer = "कोई हालिया घटना नहीं मिली।" if not rows else "हाल की घटनाएं: " + "; ".join(f"{r['crime_type']} ({r['severity']}/10)" for r in rows[:3])
+        elif intent == "OUT_OF_SCOPE":
+            answer = "मैं अपराध विश्लेषण, ट्रेंड्स, अलर्ट्स, जोखिम और हॉटस्पॉट के बारे में जानकारी दे सकता हूँ।"
+        else:
+            answer = "अपराध विश्लेषण, ट्रेंड्स, अलर्ट्स, जोखिम, हॉटस्पॉट और आपराधिक नेटवर्क के बारे में पूछें।"
+        return answer, [a for a in actions if a]
+
     else:
-        answer = "The Intelligence Copilot is designed for this crime analytics dataset. Ask about risk, trends, alerts, hotspots, incidents, offenders, networks, or the current intelligence brief."
-    return answer, [a for a in actions if a]
+        if intent in ("SUMMARY", "FOLLOW_UP", "GENERAL_ANALYTICS"):
+            b = evidence.get("brief") or {}
+            if b.get("status") == "selection_required":
+                return "Select a district or ward first so I can ground the summary in the available intelligence analytics.", []
+            p = b.get("priority", {})
+            answer = f"{b.get('scope', {}).get('name', name)} has {p.get('level', 'available')} priority ({p.get('score', '—')}/100). {b.get('headline', 'No consolidated intelligence brief is available.') }"
+            if b.get("why_it_matters"): answer += " " + " ".join(b["why_it_matters"][:2])
+            actions = b.get("analytical_followups", [])
+        elif intent == "RISK":
+            ps = (evidence.get("risk") or {}).get("predictions", [])
+            p = ps[0] if ps else None
+            answer = (f"The model estimates {p['risk_score']}/100 {p['risk_level'].upper()} risk over the next {p['prediction_horizon_days']} days." if p and not p.get("insufficient_data") else "There is not enough historical data to generate a reliable prediction for this scope.")
+            actions = [_action("View Risk", "view_risk")]
+        elif intent == "TREND":
+            t = evidence.get("trend") or {}; candidates = t.get("anomalies") or t.get("top_emerging_trends") or []
+            top = max(candidates, key=lambda x: abs(x.get("percentage_change", x.get("change_percent", 0)) or 0), default=None)
+            answer = "No significant trend anomaly was detected for this scope." if not top else f"{top.get('crime_type') or 'Crime'} is showing a {top.get('direction', 'rising')} signal with a {top.get('percentage_change', top.get('change_percent', '—'))}% change."
+            actions = [_action("View Trend", "view_trend")]
+        elif intent == "ALERT":
+            a = evidence.get("alerts") or {}; s = a.get("summary", {})
+            answer = f"There are {s.get('total', 0)} active intelligence alerts in this scope, including {s.get('critical', 0)} critical and {s.get('high', 0)} high-severity alerts."
+            actions = [_action("View Alerts", "view_alerts")]
+        elif intent == "HOTSPOT":
+            h = evidence.get("hotspots") or {}; answer = f"{h.get('n_clusters', 0)} active hotspot clusters were detected from {h.get('n_incidents', 0)} incidents."; actions = [_action("View Hotspots", "view_hotspots")]
+        elif intent in ("NETWORK", "OFFENDER"):
+            n = evidence.get("network") or {}; s = n.get("summary") or {}; answer = f"The network contains {s.get('n_nodes', 0)} linked offenders across {s.get('n_communities', 0)} communities."; actions = [_action("Open Network", "view_network")]
+        elif intent == "INCIDENT":
+            rows = evidence.get("incidents") or []; answer = "No recent incidents were found." if not rows else "Recent records: " + "; ".join(f"{r['crime_type']} ({r['severity']}/10)" for r in rows[:3])
+        elif intent == "COMPARE":
+            rows = evidence.get("comparison") or []
+            ranked = sorted(rows, key=lambda x: (x.get("brief", {}).get("priority", {}).get("score") or -1), reverse=True)
+            if not ranked:
+                answer = "I could not reliably identify two wards to compare."
+            else:
+                answer = "Comparison: " + "; ".join(f"{x['ward']} has {x.get('brief', {}).get('priority', {}).get('level', 'unavailable')} priority ({x.get('brief', {}).get('priority', {}).get('score', '—')}/100)" for x in ranked)
+                top = ranked[0]; scope = evidence.get("scope", {})
+                actions = [_action(f"Open {top['ward']}", "view_ward", ward_id=top.get("brief", {}).get("scope", {}).get("ward_id"), ward_name=top["ward"], district=scope.get("district"))]
+        elif intent == "OUT_OF_SCOPE":
+            answer = "The Intelligence Copilot is designed for the Crime Intel Suite analytical dataset. I can help with risk, trends, alerts, hotspots, incidents, offenders, networks, and intelligence briefs."
+        else:
+            answer = "The Intelligence Copilot is designed for this crime analytics dataset. Ask about risk, trends, alerts, hotspots, incidents, offenders, networks, or the current intelligence brief."
+        return answer, [a for a in actions if a]
 
 
-def _call_llm(message: str, evidence: dict, history: list[dict]) -> str | None:
+def _call_llm(message: str, evidence: dict, history: list[dict], lang: str = "en") -> str | None:
     key = os.getenv("OPENAI_API_KEY")
     if not key: return None
+
+    lang_prompt = " Respond entirely in English."
+    if lang == "kn":
+        lang_prompt = " CRITICAL INSTRUCTION: Respond ENTIRELY in Kannada (ಕನ್ನಡ) language and script. Output all explanations, insights, and summaries in natural, professional Kannada."
+    elif lang == "hi":
+        lang_prompt = " CRITICAL INSTRUCTION: Respond ENTIRELY in Hindi (हिन्दी) Devanagari script. Output all explanations, insights, and summaries in natural, professional Hindi."
+
     body = {"model": os.getenv("OPENAI_MODEL", "llama-3.3-70b-versatile"), "messages": [
-        {"role": "system", "content": "You are Intelligence Copilot for Crime Intel Suite. Use only the supplied structured evidence. Never invent numbers, people, locations, causes, certainty, or enforcement recommendations. Distinguish predictions from observed trends. Be concise (2-5 sentences). If evidence is missing, say so."},
+        {"role": "system", "content": f"You are Intelligence Copilot for Crime Intel Suite. Answer all user questions helpfully. For dashboard questions, analyse the supplied evidence before answering: state the most important finding, connect relevant risk/trend/alert signals, distinguish observed facts from predictions, explain uncertainty or data limitations, and suggest safe analytical next steps when useful. Use only the supplied structured evidence and never invent numbers, people, locations, causes, certainty, or enforcement recommendations. For general questions, give a concise, factual answer and make clear that it is not dashboard evidence. Use short headings or bullets when they make an analytical answer clearer. {lang_prompt}"},
         *[{"role": x.get("role", "user"), "content": str(x.get("content", ""))[:1200]} for x in history[-8:]],
         {"role": "user", "content": f"Evidence context (authoritative):\n{json.dumps(evidence, ensure_ascii=False, default=str)[:10000]}\n\nQuestion: {message}"},
-    ], "temperature": 0.1, "max_tokens": 350}
+    ], "temperature": 0.1, "max_tokens": 400}
     try:
         response = requests.post(f"{os.getenv('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1')}/chat/completions", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "User-Agent": "CrimeIntelSuite/1.0"}, json=body, timeout=20)
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
+        answer = response.json()["choices"][0]["message"]["content"].strip()
+        # Models occasionally ignore a language instruction.  Do not leak that
+        # response into a Kannada/Hindi conversation; the localized fallback is
+        # safer and consistently readable.
+        if lang == "kn" and not re.search(r"[\u0C80-\u0CFF]", answer):
+            return None
+        if lang == "hi" and not re.search(r"[\u0900-\u097F]", answer):
+            return None
+        return answer
     except Exception:
         return None
 
 
 def answer_copilot(db: Session, message: str, context: dict | None = None, history: list[dict] | None = None) -> dict:
     context = context or {}; history = history or []
+    lang = context.get("language") if context.get("language") in {"en", "kn", "hi"} else "en"
     evidence = build_evidence_context(db, message, context)
     if evidence["intent"] == "COMPARE":
         district, _, crime = _scope(context); wards = _find_compare_wards(db, message, district)
         if len(wards) < 2:
-            return {"answer": "I could not reliably identify two wards to compare. Include both ward names from the selected district.", "evidence": [], "actions": [], "scope": {"district": district, "ward_id": None}, "sources": []}
+            no_compare_msg = "ನೋಡಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ." if lang == "kn" else "तुलना के लिए दो वार्ड की आवश्यकता है।" if lang == "hi" else "I could not reliably identify two wards to compare."
+            return {"answer": no_compare_msg, "evidence": [], "actions": [], "scope": {"district": district, "ward_id": None}, "sources": []}
         briefs = [_brief_context(db, district, w.id, crime, *_dates(context), int(context.get("prediction_horizon") or 14), context.get("granularity") or "weekly") for w in wards]
         evidence.update({"comparison": [{"ward": w.name, "brief": _compact(b)} for w, b in zip(wards, briefs)], "sources": ["Ward Intelligence Briefs"]})
-    fallback, actions = _fallback(message, evidence, db)
-    answer = _call_llm(message, evidence, history) or fallback
-    # The model never controls these fields; they are application-derived.
-    sources = evidence.get("sources", [])
-    return {"answer": answer, "evidence": _evidence_rows(evidence), "actions": [a for a in actions if a.get("action") in SUPPORTED_ACTIONS], "scope": evidence["scope"], "sources": sources, "intent": evidence["intent"]}
+    fallback, actions = _fallback(message, evidence, db, lang=lang)
+    answer = _call_llm(message, evidence, history, lang=lang) or fallback
+    source_names = {
+        "kn": {"Intelligence Brief": "ಗುಪ್ತಚರ ಸಾರಾಂಶ", "Predictive Risk": "ಮುನ್ಸೂಚನಾ ಅಪಾಯ", "Trend Analytics": "ಪ್ರವೃತ್ತಿ ವಿಶ್ಲೇಷಣೆ", "Intelligence Alerts": "ಗುಪ್ತಚರ ಎಚ್ಚರಿಕೆಗಳು", "Hotspot Analytics": "ಹಾಟ್‌ಸ್ಪಾಟ್ ವಿಶ್ಲೇಷಣೆ", "Network Analytics": "ಜಾಲ ವಿಶ್ಲೇಷಣೆ", "Repeat Offender Analytics": "ಪುನರಾವರ್ತಿತ ಅಪರಾಧಿ ವಿಶ್ಲೇಷಣೆ", "Incident Records": "ಘಟನೆ ದಾಖಲೆಗಳು", "Ward Intelligence Briefs": "ವಾರ್ಡ್ ಗುಪ್ತಚರ ಸಾರಾಂಶಗಳು"},
+        "hi": {"Intelligence Brief": "इंटेलिजेंस ब्रीफ", "Predictive Risk": "पूर्वानुमानित जोखिम", "Trend Analytics": "ट्रेंड विश्लेषण", "Intelligence Alerts": "इंटेलिजेंस अलर्ट", "Hotspot Analytics": "हॉटस्पॉट विश्लेषण", "Network Analytics": "नेटवर्क विश्लेषण", "Repeat Offender Analytics": "दोहराने वाले अपराधी विश्लेषण", "Incident Records": "घटना रिकॉर्ड", "Ward Intelligence Briefs": "वार्ड इंटेलिजेंस ब्रीफ"},
+    }
+    sources = [source_names.get(lang, {}).get(source, source) for source in evidence.get("sources", [])]
+    return {"answer": answer, "evidence": _evidence_rows(evidence, lang=lang), "actions": [a for a in actions if a.get("action") in SUPPORTED_ACTIONS], "scope": evidence["scope"], "sources": sources, "intent": evidence["intent"]}
 
 
-def _evidence_rows(evidence: dict) -> list[dict]:
+def _evidence_rows(evidence: dict, lang: str = "en") -> list[dict]:
     rows = []
+    lbl_risk = "ಅಪಾಯದ ಮಟ್ಟ" if lang == "kn" else "जोखिम स्तर" if lang == "hi" else "Predictive risk"
+    lbl_trend = "ಪ್ರವೃತ್ತಿ" if lang == "kn" else "ट्रेंड" if lang == "hi" else "Trend"
+    lbl_alerts = "ಸಕ್ರಿಯ ಎಚ್ಚರಿಕೆಗಳು" if lang == "kn" else "सक्रिय अलर्ट" if lang == "hi" else "Active alerts"
+    lbl_hotspots = "ಹಾಟ್‌ಸ್ಪಾಟ್‌ಗಳು" if lang == "kn" else "हॉटस्पॉट" if lang == "hi" else "Hotspots"
+    lbl_network = "ಅಪರಾಧಿ ಜಾಲ" if lang == "kn" else "नेटवर्क" if lang == "hi" else "Network"
+
     b = evidence.get("brief") or {}
     if b.get("predictive_risk", {}).get("risk_score") is not None:
-        p = b["predictive_risk"]; rows.append({"label": "Predictive risk", "value": f"{p['risk_score']}/100 — {str(p.get('risk_level', '')).upper()}"})
+        p = b["predictive_risk"]; rows.append({"label": lbl_risk, "value": f"{p['risk_score']}/100 — {_localized_level(p.get('risk_level'), lang)}"})
     if b.get("key_development"):
-        t = b["key_development"]; rows.append({"label": "Trend", "value": f"{t.get('crime_type') or 'Crime'} {t.get('change_percent')}% — {t.get('severity')}"})
-    if b.get("alerts", {}).get("total") is not None: rows.append({"label": "Active alerts", "value": str(b["alerts"]["total"])})
-    if b.get("hotspots", {}).get("count") is not None: rows.append({"label": "Hotspots", "value": str(b["hotspots"]["count"])})
+        t = b["key_development"]; rows.append({"label": lbl_trend, "value": f"{t.get('crime_type') or 'Crime'} {t.get('change_percent')}% — {t.get('severity')}"})
+    if b.get("alerts", {}).get("total") is not None: rows.append({"label": lbl_alerts, "value": str(b["alerts"]["total"])})
+    if b.get("hotspots", {}).get("count") is not None: rows.append({"label": lbl_hotspots, "value": str(b["hotspots"]["count"])})
     if evidence.get("risk", {}).get("predictions"):
         p = evidence["risk"]["predictions"][0]
-        rows.append({"label": "Predictive risk", "value": "Insufficient historical data" if p.get("insufficient_data") else f"{p.get('risk_score')}/100 — {str(p.get('risk_level', '')).upper()}"})
+        no_data = "ಸಾಕಷ್ಟು ಮಾಹಿತಿ ಇಲ್ಲ" if lang == "kn" else "पर्याप्त डेटा नहीं" if lang == "hi" else "Insufficient data"
+        rows.append({"label": lbl_risk, "value": no_data if p.get("insufficient_data") else f"{p.get('risk_score')}/100 — {_localized_level(p.get('risk_level'), lang)}"})
     if evidence.get("trend"):
         t = evidence["trend"]; candidates = t.get("anomalies") or t.get("top_emerging_trends") or []
         top = max(candidates, key=lambda x: abs(x.get("percentage_change", x.get("change_percent", 0)) or 0), default=None)
         if top:
-            rows.append({"label": "Trend", "value": f"{top.get('crime_type') or 'Crime'} {top.get('percentage_change', top.get('change_percent', '—'))}% — {str(top.get('severity') or top.get('direction') or '').upper()}"})
+            crime_label = top.get('crime_type') or ("ಅಪರಾಧ" if lang == "kn" else "अपराध" if lang == "hi" else "Crime")
+            rows.append({"label": lbl_trend, "value": f"{crime_label} {top.get('percentage_change', top.get('change_percent', '—'))}% — {_localized_level(top.get('severity') or top.get('direction'), lang)}"})
     if evidence.get("hotspots"):
-        h = evidence["hotspots"]; rows.append({"label": "Hotspots", "value": f"{h.get('n_clusters', 0)} clusters from {h.get('n_incidents', 0)} incidents"})
+        h = evidence["hotspots"]; rows.append({"label": lbl_hotspots, "value": f"{h.get('n_clusters', 0)} clusters from {h.get('n_incidents', 0)} incidents"})
     if evidence.get("alerts", {}).get("summary"):
-        s = evidence["alerts"]["summary"]; rows.append({"label": "Alerts", "value": f"{s.get('total', 0)} total; {s.get('critical', 0)} critical"})
+        s = evidence["alerts"]["summary"]; rows.append({"label": lbl_alerts, "value": f"{s.get('total', 0)} total; {s.get('critical', 0)} critical"})
     if evidence.get("network", {}).get("summary"):
-        s = evidence["network"]["summary"]; rows.append({"label": "Network", "value": f"{s.get('n_nodes', 0)} linked offenders; {s.get('n_communities', 0)} communities"})
+        s = evidence["network"]["summary"]; rows.append({"label": lbl_network, "value": f"{s.get('n_nodes', 0)} offenders; {s.get('n_communities', 0)} groups"})
     if evidence.get("comparison"):
         for item in evidence["comparison"][:2]:
             b = item.get("brief", {}); rows.append({"label": item.get("ward", "Ward"), "value": f"{b.get('priority', {}).get('score', '—')}/100 {b.get('priority', {}).get('level', 'unavailable')} · {b.get('summary', {}).get('incidents', b.get('recent_incidents', '—'))} incidents"})

@@ -4,12 +4,14 @@ import HotspotMap from './HotspotMap.jsx';
 import RiskScoreMap from './RiskScoreMap.jsx';
 import RisingZones from './RisingZones.jsx';
 import { NetworkGraph, NetworkSidebar } from './NetworkView.jsx';
-import { HorizonSelector, ModelPerformanceCard, PredictiveRiskBlock, PREDICTION_DISCLAIMER, DEFAULT_HORIZON } from './PredictiveRisk.jsx';
+import { HorizonSelector, ModelPerformanceCard, PredictiveRiskBlock, DEFAULT_HORIZON } from './PredictiveRisk.jsx';
 import TrendsPanel from './TrendsPanel.jsx';
 import AlertsPanel from './AlertsPanel.jsx';
 import DrilldownPanel from './DrilldownPanel.jsx';
 import IntelligenceBrief from './IntelligenceBrief.jsx';
 import SettingsPopover from './SettingsPopover.jsx';
+import { LanguageProvider, useTranslation } from './LanguageContext.jsx';
+import { LANGUAGE_OPTIONS } from './translations.js';
 
 // AppSail suspends the backend instance when it is idle, so the first request
 // after a cold start can fail or hang for several seconds. The dashboard polls
@@ -26,6 +28,16 @@ const FEATURE_LABELS = {
   alerts: 'Intelligence Alerts',
   brief: 'Intelligence Brief',
   drilldown: 'District Intelligence',
+};
+
+const FEATURE_TRANSLATION_KEYS = {
+  hotspots: 'hotspots',
+  risk: 'predictiveRisk',
+  network: 'criminalNetwork',
+  trends: 'trendsAnomalies',
+  alerts: 'intelligenceAlerts',
+  brief: 'intelligenceBrief',
+  drilldown: 'districtIntelligence',
 };
 
 function getInitialTheme() {
@@ -50,7 +62,8 @@ function formatNotificationDate(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function App() {
+function AppContent() {
+  const { t, language, setLanguage } = useTranslation();
   const [theme, setTheme] = useState(getInitialTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [health, setHealth] = useState(null);
@@ -701,8 +714,8 @@ function App() {
           <div className="dashboard-container app-header__inner">
             {/* Title — no logo icon */}
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight gradient-text truncate">Crime Intel Suite</h1>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">Karnataka State Police — Intelligence Dashboard</p>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight gradient-text truncate">{t('appTitle')}</h1>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">{t('appSubtitle')}</p>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {!loading && !error && (
@@ -772,34 +785,55 @@ function App() {
                 onClick={() => setSettingsOpen(true)}
                 className="header-settings-button"
                 aria-label="Open settings"
-                title="Settings"
+                title={t('settings')}
               >
                 <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="hidden lg:inline">Settings</span>
+                <span className="hidden lg:inline">{t('settings')}</span>
               </button>
               {loading ? (
                 <span className="badge bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                   <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                  <span className="hidden sm:inline">Connecting...</span>
+                  <span className="hidden sm:inline">{t('backendConnecting')}</span>
                 </span>
               ) : error ? (
                 <span className="badge bg-rose-500/20 text-rose-300 border border-rose-500/30">
                   <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                  Offline
+                  {t('backendOffline')}
                 </span>
               ) : (
                 <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
-                  <span className="hidden sm:inline">Backend</span> Online
+                  {t('backendOnline')}
                 </span>
               )}
-              <span className="badge bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span className="hidden sm:inline">Synthetic</span> Demo Data
-              </span>
+              {/* Language Selector Dropdown */}
+              <div className="language-selector-wrapper">
+                <span className="language-selector-icon" aria-hidden="true">
+                  <span className="lang-icon-kn">ಕ</span>
+                  <span className="lang-icon-en">A</span>
+                </span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="language-selector-select"
+                  title="Select Language"
+                  aria-label="Select Language"
+                >
+                  {LANGUAGE_OPTIONS.map((opt) => (
+                    <option key={opt.code} value={opt.code}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="language-selector-arrow" aria-hidden="true">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -840,22 +874,22 @@ function App() {
               {/* ── Top KPI Cards ── */}
               <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <StatCard
-                  label="Incidents"
+                  label={t('incidents')}
                   value={hotspots?.n_incidents?.toLocaleString() ?? health.incidents?.toLocaleString() ?? '—'}
                   borderColor="border-primary-500/20"
                 />
                 <StatCard
-                  label="Accused"
+                  label={t('accused')}
                   value={network?.summary?.n_nodes?.toLocaleString() ?? health.accused?.toLocaleString() ?? '—'}
                   borderColor="border-cyan-500/20"
                 />
                 <StatCard
-                  label="Wards"
+                  label={t('wards')}
                   value={riskScores?.wards?.length?.toLocaleString() ?? health.wards?.toLocaleString() ?? '—'}
                   borderColor="border-emerald-500/20"
                 />
                 <StatCard
-                  label="Hotspot Clusters"
+                  label={t('hotspotClusters')}
                   value={hotspots?.n_clusters?.toLocaleString() ?? '—'}
                   borderColor="border-rose-500/20"
                 />
@@ -864,11 +898,11 @@ function App() {
               {/* ── Secondary Risk Summary Row ── */}
               <div className="dashboard-metrics grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
                 {[
-                  ['Total clusters', hotspots?.n_clusters ?? 0, 'text-sky-300'],
-                  ['High risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'High').length, 'text-rose-300'],
-                  ['Medium risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'Medium').length, 'text-amber-300'],
-                  ['Low risk', (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'Low').length, 'text-emerald-300'],
-                  ['Average risk', riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'text-violet-300'],
+                  [t('totalClusters'), hotspots?.n_clusters ?? 0, 'text-sky-300'],
+                  [t('highRisk'), (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'High').length, 'text-rose-300'],
+                  [t('mediumRisk'), (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'Medium').length, 'text-amber-300'],
+                  [t('lowRisk'), (hotspots?.clusters || []).filter((cluster) => cluster.severity_level === 'Low').length, 'text-emerald-300'],
+                  [t('averageRisk'), riskScores?.wards?.length ? (riskScores.wards.reduce((sum, ward) => sum + ward.risk_score, 0) / riskScores.wards.length).toFixed(1) : '—', 'text-violet-300'],
                 ].map(([label, value, color]) => (
                   <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 flex flex-col justify-center">
                     <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">{label}</p>
@@ -885,13 +919,13 @@ function App() {
                     <div className="filter-group-main">
                       {/* District Filter */}
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">District</label>
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('district')}</label>
                         <select
                           value={selectedDistrict}
                           onChange={(e) => setSelectedDistrict(e.target.value)}
                           className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[150px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
                         >
-                          <option value="">All Districts</option>
+                          <option value="">{t('allDistricts')}</option>
                           {districtsList.map(d => (
                             <option key={d.id} value={d.district}>{d.district}</option>
                           ))}
@@ -900,13 +934,13 @@ function App() {
 
                       {/* Crime Type Filter */}
                       <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
-                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">Crime Type</label>
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('crimeType')}</label>
                         <select
                           value={selectedCrimeType}
                           onChange={(e) => setSelectedCrimeType(e.target.value)}
                           className="bg-surface-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white w-[140px] focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30 outline-none"
                         >
-                          <option value="">All Types</option>
+                          <option value="">{t('allTypes')}</option>
                           {crimeTypes.map((crimeType) => <option key={crimeType} value={crimeType}>{crimeType}</option>)}
                         </select>
                       </div>
@@ -930,7 +964,7 @@ function App() {
                     <div className="filter-group-dates">
                       {/* From Date */}
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">From</label>
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('from')}</label>
                         <input
                           type="date"
                           value={dateFrom}
@@ -941,7 +975,7 @@ function App() {
 
                       {/* To Date */}
                       <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
-                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">To</label>
+                        <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('to')}</label>
                         <input
                           type="date"
                           value={dateTo}
@@ -963,7 +997,7 @@ function App() {
                           disabled={hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading}
                           className="px-4 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm h-[30px] flex items-center justify-center min-w-[80px]"
                         >
-                          {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : 'Update'}
+                          {hotspotsLoading || escalationLoading || networkLoading || riskLoading || predictionsLoading ? 'Computing...' : t('update')}
                         </button>
                       </div>
                     </div>
@@ -975,7 +1009,7 @@ function App() {
                   {/* Left Sidebar Switcher */}
                   <div className="dashboard-launcher-column">
                     <div className="flex items-center gap-2">
-                      <p className="dashboard-control-label">Intelligence Workspaces</p>
+                      <p className="dashboard-control-label">{t('intelligenceWorkspaces')}</p>
                     </div>
                     <div className="feature-launcher-grid" aria-label="Open an intelligence feature">
                       {Object.entries(FEATURE_LABELS).map(([view, label]) => (
@@ -986,7 +1020,7 @@ function App() {
                           className={`feature-launcher ${activeFeature === view ? 'feature-launcher--active' : ''}`}
                           aria-pressed={activeFeature === view}
                         >
-                          {label}
+                          {t(FEATURE_TRANSLATION_KEYS[view] || view, label)}
                         </button>
                       ))}
                     </div>
@@ -1156,8 +1190,8 @@ function App() {
                       <svg className="w-12 h-12 text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      <p className="text-sm font-medium text-slate-400">No active workspace selected</p>
-                      <p className="text-xs text-slate-600 mt-1 max-w-xs">Select an intelligence workspace from the menu on the left to begin your analysis.</p>
+                      <p className="text-sm font-medium text-slate-400">{t('noWorkspaceSelected')}</p>
+                      <p className="text-xs text-slate-600 mt-1 max-w-xs">{t('selectWorkspaceHint')}</p>
                     </div>
                   )}
 
@@ -1228,18 +1262,19 @@ function App() {
 
 // ── Risk Rankings side panel (shown when Risk Score View is active) ──
 function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance, predictionsLoading, highlightWardId, onSelectWard }) {
+  const { t } = useTranslation();
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-amber-500/30 border-t-amber-400 rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-400">Computing risk scores...</p>
+          <p className="text-sm text-slate-400">{t('computingRiskScores')}</p>
         </div>
       </div>
     );
   }
 
-  if (!riskScores?.wards) return <div className="text-slate-500 text-sm text-center">No data</div>;
+  if (!riskScores?.wards) return <div className="text-slate-500 text-sm text-center">{t('noRiskData')}</div>;
 
   const wards = highlightWardId
     ? riskScores.wards.filter((w) => w.ward_id === highlightWardId)
@@ -1251,14 +1286,14 @@ function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-            Risk Rankings
+            {t('riskRankings')}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Descriptive risk scores (0-100) for the current window
+            {t('descriptiveRiskScores')}
           </p>
         </div>
         <div className="badge bg-amber-500/20 text-amber-300 border border-amber-500/30">
-          {wards.filter(w => w.risk_score >= 50).length} high-risk
+          {wards.filter(w => w.risk_score >= 50).length} {t('highRiskWards')}
         </div>
       </div>
 
@@ -1267,7 +1302,7 @@ function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
         {wards.length === 0 ? (
           <div className="glass-card p-4 text-center text-slate-500 text-sm">
-            No risk data available for this selection.
+            {t('noRiskData')}
           </div>
         ) : (
           wards.map((ward) => (
@@ -1277,14 +1312,15 @@ function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance
       </div>
 
       <div className="text-xs text-slate-600 border-t border-white/5 pt-2 space-y-1">
-        <p>Descriptive: XGBoost + SHAP explainability · Predictive: temporal ML forecast</p>
-        <p className="italic text-slate-600">{PREDICTION_DISCLAIMER}</p>
+        <p>{t('riskMethod')}</p>
+        <p className="italic text-slate-600">{t('predictionDisclaimer')}</p>
       </div>
     </div>
   );
 }
 
 function RiskWardCard({ ward, prediction, onSelectWard }) {
+  const { t, language } = useTranslation();
   const scoreColor = ward.risk_score >= 75 ? 'text-red-400'
     : ward.risk_score >= 50 ? 'text-orange-400'
     : ward.risk_score >= 25 ? 'text-yellow-400'
@@ -1294,10 +1330,22 @@ function RiskWardCard({ ward, prediction, onSelectWard }) {
     : ward.risk_score >= 50 ? 'bg-orange-500/5 border-orange-500/15'
     : 'bg-white/[0.02] border-white/5';
 
-  const levelLabel = ward.risk_level === 'critical' ? 'CRITICAL'
-    : ward.risk_level === 'high' ? 'HIGH'
-    : ward.risk_level === 'moderate' ? 'MOD'
-    : 'LOW';
+  const levelLabel = ward.risk_level === 'critical' ? t('critical')
+    : ward.risk_level === 'high' ? t('high')
+    : ward.risk_level === 'moderate' ? t('moderate')
+    : t('low');
+  const factorText = (factor) => {
+    const labels = {
+      kn: { 'high incident volume': 'ಹೆಚ್ಚಿನ ಘಟನೆಗಳ ಪ್ರಮಾಣ', 'low incident volume': 'ಕಡಿಮೆ ಘಟನೆಗಳ ಪ್ರಮಾಣ', 'elevated crime severity': 'ಹೆಚ್ಚಿದ ಅಪರಾಧ ತೀವ್ರತೆ', 'low crime severity': 'ಕಡಿಮೆ ಅಪರಾಧ ತೀವ್ರತೆ', 'many high-severity incidents': 'ಹೆಚ್ಚು ತೀವ್ರತೆಯ ಘಟನೆಗಳು', 'few severe incidents': 'ಕಡಿಮೆ ಗಂಭೀರ ಘಟನೆಗಳು', 'rising minor-crime trend': 'ಸಣ್ಣ ಅಪರಾಧಗಳ ಏರಿಕೆ', 'stable minor-crime levels': 'ಸ್ಥಿರ ಸಣ್ಣ ಅಪರಾಧ ಮಟ್ಟಗಳು', 'elevated offender presence': 'ಹೆಚ್ಚಿದ ಅಪರಾಧಿ ಉಪಸ್ಥಿತಿ', 'low offender presence': 'ಕಡಿಮೆ ಅಪರಾಧಿ ಉಪಸ್ಥಿತಿ', 'high repeat-offender density': 'ಹೆಚ್ಚಿನ ಪುನರಾವರ್ತಿತ ಅಪರಾಧಿ ಸಾಂದ್ರತೆ', 'few repeat offenders': 'ಕಡಿಮೆ ಪುನರಾವರ್ತಿತ ಅಪರಾಧಿಗಳು' },
+      hi: { 'high incident volume': 'घटनाओं की अधिक संख्या', 'low incident volume': 'घटनाओं की कम संख्या', 'elevated crime severity': 'अपराध की बढ़ी हुई गंभीरता', 'low crime severity': 'कम अपराध गंभीरता', 'many high-severity incidents': 'अधिक गंभीर घटनाएं', 'few severe incidents': 'कम गंभीर घटनाएं', 'rising minor-crime trend': 'छोटे अपराधों में वृद्धि', 'stable minor-crime levels': 'छोटे अपराधों का स्थिर स्तर', 'elevated offender presence': 'अपराधियों की बढ़ी हुई उपस्थिति', 'low offender presence': 'अपराधियों की कम उपस्थिति', 'high repeat-offender density': 'बार-बार अपराध करने वालों की अधिक संख्या', 'few repeat offenders': 'बार-बार अपराध करने वाले कम लोग' },
+    };
+    return labels[language]?.[factor] || factor;
+  };
+  const localizedExplanation = language === 'kn'
+    ? `${ward.ward_name} ನಲ್ಲಿ ${levelLabel} ಅಪಾಯ. ಪ್ರಮುಖ ಅಂಶಗಳು: ${(ward.top_factors || []).slice(0, 2).map((f) => factorText(f.description)).join(', ') || 'ಲಭ್ಯವಿರುವ ಅಪಾಯದ ಅಂಕ'}.`
+    : language === 'hi'
+      ? `${ward.ward_name} में ${levelLabel} जोखिम। मुख्य कारक: ${(ward.top_factors || []).slice(0, 2).map((f) => factorText(f.description)).join(', ') || 'उपलब्ध जोखिम स्कोर'}।`
+      : ward.explanation;
 
   return (
     <div className={`ward-card-hover rounded-xl border p-3 ${bgColor}`}>
@@ -1332,7 +1380,7 @@ function RiskWardCard({ ward, prediction, onSelectWard }) {
 
       {/* Explanation */}
       <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
-        {ward.explanation}
+        {localizedExplanation}
       </p>
 
       {/* Top factors as compact tags */}
@@ -1344,7 +1392,7 @@ function RiskWardCard({ ward, prediction, onSelectWard }) {
                 ? 'bg-red-500/10 text-red-300 border border-red-500/20'
                 : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
             }`}>
-              {f.direction === 'up' ? '↑' : '↓'} {f.description}
+              {f.direction === 'up' ? '↑' : '↓'} {factorText(f.description)}
             </span>
           ))}
         </div>
@@ -1471,9 +1519,10 @@ const AI_SUGGESTIONS = [
   'Summarize offender activity',
 ];
 
-function formatChatTime(ts) {
+function formatChatTime(ts, language = 'en') {
   if (!ts) return '';
-  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const locale = language === 'kn' ? 'kn-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+  return new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 function TypingDots() {
@@ -1491,11 +1540,14 @@ function AiCopilotPanel({
   dateFrom, dateTo, horizonDays, trendGranularity,
   onClose, onNavigate,
 }) {
+  const { t, language } = useTranslation();
   const [question, setQuestion] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [isListening, setIsListening] = useState(false);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const context = {
     health, hotspots, escalation, riskScores, network,
@@ -1503,14 +1555,15 @@ function AiCopilotPanel({
     dateFrom, dateTo,
     prediction_horizon: horizonDays,
     granularity: trendGranularity,
+    language,
   };
 
   const hasConversation = messages.length > 0;
 
   // Auto-focus input when panel opens or new chat starts
   useEffect(() => {
-    const t = window.setTimeout(() => inputRef.current?.focus(), 80);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
   }, [hasConversation]);
 
   // Keep newest message in view
@@ -1520,9 +1573,51 @@ function AiCopilotPanel({
     }
   }, [messages, aiLoading]);
 
+  // Voice Microphone Speech-to-Text handler
+  const toggleSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert(t('micNotSupported'));
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    try {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = language === 'kn' ? 'kn-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+      rec.onstart = () => setIsListening(true);
+      rec.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map((result) => result[0].transcript)
+          .join('');
+        setQuestion(transcript);
+      };
+      rec.onerror = (err) => {
+        console.error('Speech recognition error:', err);
+        setIsListening(false);
+      };
+      rec.onend = () => setIsListening(false);
+      rec.start();
+      recognitionRef.current = rec;
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
   const askQuestion = async (raw) => {
     const trimmed = (raw || '').trim();
     if (!trimmed || aiLoading) return;
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
 
     setMessages((prev) => [...prev, { role: 'user', text: trimmed, ts: Date.now() }]);
     setQuestion('');
@@ -1531,14 +1626,11 @@ function AiCopilotPanel({
     try {
       const response = await fetch(`${API_URL}/api/copilot`, {
         method: 'POST',
-        // text/plain keeps this a CORS "simple request" so the browser skips
-        // the preflight. The Catalyst gateway answers OPTIONS itself without
-        // any Access-Control-* headers, so a preflighted POST is always
-        // blocked. The body is still JSON; the backend parses it directly.
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: JSON.stringify({
           message: trimmed,
-          context,
+          language,
+          context: { ...context, language },
           history: messages.slice(-8).map((m) => ({ role: m.role, content: m.text })),
         }),
       });
@@ -1546,7 +1638,7 @@ function AiCopilotPanel({
       const data = await response.json();
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        text: data.answer || 'No grounded answer was available.',
+        text: data.answer || t('noGroundedAnswer'),
         evidence: data.evidence || [],
         actions: data.actions || [],
         sources: data.sources || [],
@@ -1555,7 +1647,11 @@ function AiCopilotPanel({
     } catch {
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        text: 'The AI Assistant is temporarily unavailable. Please try again after the backend responds.',
+        text: language === 'kn'
+          ? 'AI ಮಿತ್ರ ತಾತ್ಕಾಲಿಕವಾಗಿ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.'
+          : language === 'hi'
+          ? 'AI मित्र अस्थायी रूप से अनुपलब्ध है। कृपया बाद में पुनः प्रयास करें।'
+          : 'The AI Assistant is temporarily unavailable. Please try again after the backend responds.',
         ts: Date.now(),
       }]);
     } finally {
@@ -1576,6 +1672,10 @@ function AiCopilotPanel({
   };
 
   const startNewChat = () => {
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
     setMessages([]);
     setQuestion('');
     setAiLoading(false);
@@ -1584,29 +1684,37 @@ function AiCopilotPanel({
 
   const dateRangeLabel = dateFrom && dateTo
     ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
-    : 'All Available Dates';
+    : t('allAvailableDates');
+
+  const suggestionList = [
+    t('sugQuestion1'),
+    t('sugQuestion2'),
+    t('sugQuestion3'),
+    t('sugQuestion4'),
+    t('sugQuestion5'),
+  ];
 
   return (
-    <aside className="ai-copilot-panel" aria-label="AI Mitra workspace">
+    <aside className="ai-copilot-panel" aria-label={t('aiMitraTitle')}>
       {/* ── Panel Header ── */}
       <div className="ai-panel-header">
         <div className="ai-panel-header__identity">
           <div className="ai-panel-header__icon" aria-hidden="true">✦</div>
           <div className="min-w-0">
-            <p className="ai-panel-header__title">AI Mitra</p>
-            <p className="ai-panel-header__subtitle">Evidence-grounded intelligence analysis</p>
+            <p className="ai-panel-header__title">{t('aiMitraTitle')}</p>
+            <p className="ai-panel-header__subtitle">{t('aiMitraSubtitle')}</p>
           </div>
         </div>
         <div className="ai-panel-header__actions">
           {hasConversation && (
-            <button type="button" className="ai-panel-btn" onClick={startNewChat} aria-label="Start new chat">
+            <button type="button" className="ai-panel-btn" onClick={startNewChat} aria-label={t('newChat')}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14M5 12h14" />
               </svg>
-              New Chat
+              {t('newChat')}
             </button>
           )}
-          <button type="button" className="ai-panel-close" onClick={onClose} aria-label="Close AI Mitra">
+          <button type="button" className="ai-panel-close" onClick={onClose} aria-label={t('closeAiMitra')}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1620,26 +1728,25 @@ function AiCopilotPanel({
           <div className="ai-empty-state">
             {/* Welcome */}
             <p className="ai-welcome-text">
-              Hi — I'm your AI Mitra. Ask about risk patterns, trends, alerts,
-              hotspots, incidents, offender networks, or the current intelligence brief.
+              {t('aiWelcome')}
             </p>
 
             {/* Current context */}
             <div className="ai-context-section">
-              <p className="ai-context-label">Current Context</p>
+              <p className="ai-context-label">{t('currentContext')}</p>
               <div className="ai-context-chips">
-                <AiContextChip label="View" value={viewLabel(mapView)} />
-                <AiContextChip label="District" value={selectedDistrict || 'All Districts'} />
-                {selectedWard && <AiContextChip label="Ward" value={selectedWard.name} />}
-                <AiContextChip label="Crime Type" value={selectedCrimeType || 'All Types'} />
-                <AiContextChip label="Date" value={dateRangeLabel} />
+                <AiContextChip label={t('contextView')} value={viewLabel(mapView)} />
+                <AiContextChip label={t('contextDistrict')} value={selectedDistrict || t('allDistricts')} />
+                {selectedWard && <AiContextChip label={t('contextWard')} value={selectedWard.name} />}
+                <AiContextChip label={t('contextCrimeType')} value={selectedCrimeType || t('allTypes')} />
+                <AiContextChip label={t('contextDate')} value={dateRangeLabel} />
               </div>
             </div>
 
             {/* Suggested questions */}
             <div className="ai-suggestions-section">
-              <p className="ai-context-label">Suggested questions</p>
-              {AI_SUGGESTIONS.map((suggestion) => (
+              <p className="ai-context-label">{t('suggestedQuestions')}</p>
+              {suggestionList.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
@@ -1657,9 +1764,9 @@ function AiCopilotPanel({
                 type="button"
                 className="ai-suggestion-btn ai-suggestion-btn--primary"
                 disabled={aiLoading}
-                onClick={() => askQuestion('Summarize the current dashboard')}
+                onClick={() => askQuestion(t('summarizeDashboard'))}
               >
-                <span>Summarize the current dashboard</span>
+                <span>{t('summarizeDashboard')}</span>
                 <svg className="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -1682,14 +1789,14 @@ function AiCopilotPanel({
                   {/* Evidence block for assistant messages */}
                   {message.role === 'assistant' && message.evidence?.length > 0 && (
                     <div className="ai-evidence-block">
-                      <p className="ai-evidence-label">Evidence</p>
+                      <p className="ai-evidence-label">{t('evidence')}</p>
                       {message.evidence.map((item) => (
                         <p key={item.label} className="ai-evidence-item">
                           • {item.label}: <span>{item.value}</span>
                         </p>
                       ))}
                       {message.sources?.length > 0 && (
-                        <p className="ai-sources-line">Based on: {message.sources.join(' · ')}</p>
+                        <p className="ai-sources-line">{t('basedOn')}: {message.sources.join(' · ')}</p>
                       )}
                       {message.actions?.length > 0 && (
                         <div className="ai-actions-row">
@@ -1709,7 +1816,7 @@ function AiCopilotPanel({
                   )}
 
                   {message.ts && (
-                    <span className="ai-timestamp">{formatChatTime(message.ts)}</span>
+                    <span className="ai-timestamp">{formatChatTime(message.ts, language)}</span>
                   )}
                 </div>
               );
@@ -1735,14 +1842,27 @@ function AiCopilotPanel({
             onKeyDown={handleKeyDown}
             disabled={aiLoading}
             rows={1}
-            placeholder="Ask..."
+            placeholder={isListening ? t('micListening') : t('askPlaceholder')}
             className="ai-panel-textarea"
           />
+          {/* Voice Microphone Input Button */}
+          <button
+            type="button"
+            onClick={toggleSpeechRecognition}
+            disabled={aiLoading}
+            className={`ai-mic-btn ${isListening ? 'ai-mic-btn--listening' : ''}`}
+            title={isListening ? t('micListening') : t('micClickToSpeak')}
+            aria-label={isListening ? t('micListening') : t('micClickToSpeak')}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </button>
           <button
             type="submit"
             disabled={aiLoading || !question.trim()}
             className="ai-send-btn"
-            aria-label="Send question"
+            aria-label={t('sendQuestion')}
           >
             {aiLoading ? (
               <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -1902,4 +2022,10 @@ function formatDate(isoStr) {
   return d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export default App;
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
+  );
+}

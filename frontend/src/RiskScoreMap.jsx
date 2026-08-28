@@ -7,6 +7,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, ScaleControl, useMap } fr
 import { useCallback, useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import MapPopupButton from './MapPopupButton.jsx';
+import { useTranslation } from './LanguageContext.jsx';
 
 // Saturated, distinct color steps: green → amber → orange → red
 const RISK_COLORS = {
@@ -73,14 +74,15 @@ function MapCtrlBtn({ onClick, title, children }) {
 
 // ── Inner map content (shared between inline and popup) ────────────────────
 function RiskScoreMapInner({ riskScores, loading, predictionsByWard, mapStyle, setMapStyle }) {
+  const { t } = useTranslation();
   const center = [14.5, 76.2];
   const [leafletMap, setLeafletMap] = useState(null);
   const onMap = useCallback((m) => setLeafletMap(m), []);
 
   const wards = riskScores?.wards || [];
   const searchLabel = wards.length > 0
-    ? `${wards.length} ward risk scores in the current scope`
-    : 'Search Karnataka ward risk';
+    ? `${wards.length} ${t('searchWardScope')}`
+    : t('searchWardPlaceholder');
 
   return (
     <div className="google-map-shell relative w-full h-full overflow-hidden border border-white/10">
@@ -99,8 +101,8 @@ function RiskScoreMapInner({ riskScores, loading, predictionsByWard, mapStyle, s
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm font-medium text-slate-400">No risk scores available</p>
-            <p className="text-xs text-slate-600 mt-1">Try adjusting the date range or filters.</p>
+            <p className="text-sm font-medium text-slate-400">{t('noRiskScoresFound')}</p>
+            <p className="text-xs text-slate-600 mt-1">{t('noRiskScoresHint')}</p>
           </div>
         </div>
       )}
@@ -156,19 +158,19 @@ function RiskScoreMapInner({ riskScores, loading, predictionsByWard, mapStyle, s
 
       {/* Map / Satellite toggle */}
       <div className="google-map-layers absolute left-4 top-20 z-[1000]">
-        <button className={mapStyle === 'map' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('map')}>Map</button>
-        <button className={mapStyle === 'satellite' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('satellite')}>Satellite</button>
+        <button className={mapStyle === 'map' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('map')}>{t('mapStyleMap')}</button>
+        <button className={mapStyle === 'satellite' ? 'is-active' : ''} type="button" onClick={() => setMapStyle('satellite')}>{t('mapStyleSatellite')}</button>
       </div>
 
       {/* Legend */}
       <div className="google-map-card absolute bottom-8 left-4 z-[1000] px-4 py-3">
-        <p className="text-xs font-semibold text-slate-700 mb-2">Risk Level</p>
+        <p className="text-xs font-semibold text-slate-700 mb-2">{t('riskLevel')}</p>
         <div className="flex items-center gap-3 text-xs text-slate-600">
           {[
-            { label: 'Low', color: '#22c55e' },
-            { label: 'Moderate', color: '#eab308' },
-            { label: 'High', color: '#f97316' },
-            { label: 'Critical', color: '#ef4444' },
+            { label: t('low'), color: '#22c55e' },
+            { label: t('moderate'), color: '#eab308' },
+            { label: t('high'), color: '#f97316' },
+            { label: t('critical'), color: '#ef4444' },
           ].map(({ label, color }) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
@@ -181,7 +183,7 @@ function RiskScoreMapInner({ riskScores, loading, predictionsByWard, mapStyle, s
       {/* Score range indicator */}
       {riskScores?.model_info && (
         <div className="google-map-card absolute right-4 top-4 z-[1000] hidden px-4 py-3 sm:block">
-          <p className="text-xs font-semibold text-slate-700">{wards.length} wards scored</p>
+          <p className="text-xs font-semibold text-slate-700">{wards.length} {t('wardsScored')}</p>
         </div>
       )}
 
@@ -202,7 +204,7 @@ function RiskScoreMapInner({ riskScores, loading, predictionsByWard, mapStyle, s
         </MapCtrlBtn>
 
         {/* Full Screen Pop-up */}
-        <MapPopupButton title="Risk Score Map">
+        <MapPopupButton title={t('predictiveRisk')}>
           {() => (
             <RiskScoreMapInner
               riskScores={riskScores}
@@ -258,7 +260,7 @@ function RiskPopup({ ward, prediction }) {
       {ward.top_factors && ward.top_factors.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {ward.top_factors.map((f) => (
-            <div key={`${f.label || f.description}:${f.direction}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key={`${f.label || f.description}:${f.direction}`} style={{ display: 'flex', items: 'center', gap: 6 }}>
               <span style={{ fontSize: 10, color: f.direction === 'up' ? '#dc2626' : '#16a34a', width: 12, fontWeight: 700 }}>
                 {f.direction === 'up' ? '▲' : '▼'}
               </span>

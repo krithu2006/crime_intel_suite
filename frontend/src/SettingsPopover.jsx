@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from './LanguageContext.jsx';
 
 export default function SettingsPopover({ theme, onThemeChange, onClose }) {
+  const { t } = useTranslation();
   const titleId = useId();
   const panelRef = useRef(null);
 
@@ -20,14 +22,14 @@ export default function SettingsPopover({ theme, onThemeChange, onClose }) {
     }}>
       <section ref={panelRef} className="settings-popover" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header className="settings-popover__header">
-          <h2 id={titleId}>Settings</h2>
+          <h2 id={titleId}>{t('settings')}</h2>
           <button type="button" className="settings-popover__close" onClick={onClose} aria-label="Close settings">×</button>
         </header>
-        <p className="settings-popover__label">Appearance</p>
+        <p className="settings-popover__label">{t('themeOptions')}</p>
         <div className="settings-theme-grid">
           {[
-            { value: 'light', icon: '☀', label: 'Light' },
-            { value: 'dark', icon: '🌙', label: 'Dark' },
+            { value: 'light', icon: '☀', label: t('lightGlass') },
+            { value: 'dark', icon: '🌙', label: t('darkGlass') },
           ].map((option) => (
             <button
               key={option.value}

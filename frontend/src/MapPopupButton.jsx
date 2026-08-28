@@ -12,8 +12,10 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from './LanguageContext.jsx';
 
 export default function MapPopupButton({ children, title = 'Map' }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
   const open = useCallback(() => setIsOpen(true), []);
@@ -26,7 +28,6 @@ export default function MapPopupButton({ children, title = 'Map' }) {
       if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', handleKey);
-    // Prevent body scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -37,15 +38,14 @@ export default function MapPopupButton({ children, title = 'Map' }) {
 
   return (
     <>
-      {/* ── Pop-up trigger button (placed by the parent in the controls stack) ── */}
+      {/* ── Pop-up trigger button ── */}
       <button
         type="button"
         onClick={open}
-        title={`Open ${title} in full screen`}
-        aria-label={`Open ${title} in full screen`}
+        title={t('openFullScreen')}
+        aria-label={t('openFullScreen')}
         className="map-ctrl-btn"
       >
-        {/* Expand / full-screen icon */}
         <svg
           className="w-4 h-4"
           fill="none"
@@ -89,15 +89,14 @@ export default function MapPopupButton({ children, title = 'Map' }) {
                   />
                 </svg>
                 <span className="map-popup-title">{title}</span>
-                <span className="map-popup-hint">Press Esc to close</span>
+                <span className="map-popup-hint">{t('pressEscToClose')}</span>
               </div>
               <button
                 type="button"
                 onClick={close}
                 className="map-popup-close"
-                aria-label="Close full screen map"
+                aria-label={t('exitFullScreen')}
               >
-                {/* Compress / minimize icon */}
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -112,7 +111,7 @@ export default function MapPopupButton({ children, title = 'Map' }) {
                     d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3"
                   />
                 </svg>
-                <span>Exit full screen</span>
+                <span>{t('exitFullScreen')}</span>
               </button>
             </div>
 
