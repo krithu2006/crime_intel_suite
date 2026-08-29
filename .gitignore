@@ -6,17 +6,17 @@ backend/venv/
 backend/.env
 .env
 
-# Catalyst AppSail vendored dependencies: the predeploy hook pip-installs
-# requirements.txt into backend/ with `-t ./` so they ship in the bundle.
-# Build artifacts — regenerated on every `catalyst deploy appsail`.
-backend/*/
-!backend/app/
-!backend/tests/
-backend/*.dist-info/
-backend/*.so
-backend/six.py
-backend/threadpoolctl.py
-backend/typing_extensions.py
+# Catalyst AppSail vendored dependencies: the predeploy/preserve scripts
+# (app-config.json) pip-install requirements.txt into this dedicated
+# subdirectory (never into backend/ itself — see run.py's sys.path comment)
+# so they ship in the bundle without ever colliding with local dev's own
+# .venv. Regenerated on every `catalyst deploy appsail`.
+backend/vendor/
+
+# Catalyst Client build output (catalyst.json's client.source) — copied from
+# frontend/dist by the client predeploy script, not source.
+backend/client/
+
 backend.zip
 
 # Node

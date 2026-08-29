@@ -472,21 +472,51 @@ def get_notifications(limit: int = Query(5, ge=1, le=20), db: Session = Depends(
     return {"unread_count": len(unread), "severity_counts": severity_counts, "alerts": unread[:limit]}
 
 
-@app.patch("/api/alerts/{alert_id}/read")
-def patch_alert_read(alert_id: str, db: Session = Depends(get_db)):
+# These three mutations are POST, not PATCH, despite being pure state
+# updates — this is deliberate, not a REST-style choice. PATCH (like PUT and
+# DELETE) is never a CORS "simple method": the browser always sends an OPTIONS
+# preflight for it, regardless of body/headers. On this deployment, Catalyst's
+# gateway answers that preflight itself before it ever reaches FastAPI, and
+# its response carries no Access-Control-* headers — so the browser blocks
+# the real request and every PATCH call fails with a bare "NetworkError",
+# even though the endpoint works fine when hit directly (curl, no CORS
+# involved). POST with a text/plain body is a CORS "simple request" (see
+# /api/copilot and /api/ai-chat above for the same, older workaround) and
+# skips the preflight entirely, so it isn't subject to the gateway's broken
+# OPTIONS handling. The request/response shapes are otherwise unchanged.
+@app.post("/api/alerts/{alert_id}/read")
+def post_alert_read(alert_id: str, db: Session = Depends(get_db)):
     _require_current_alert(db, alert_id)
     return mark_alert_read(db, alert_id)
 
 
-@app.patch("/api/notifications/read-all")
-def patch_all_notifications_read(db: Session = Depends(get_db)):
+@app.post("/api/notifications/read-all")
+def post_all_notifications_read(db: Session = Depends(get_db)):
     unread_ids = [alert["id"] for alert in _global_alerts(db) if not alert["is_read"]]
     return {"success": True, "marked_read": mark_alerts_read(db, unread_ids)}
 
 
-@app.patch("/api/alerts/{alert_id}")
-def patch_alert_status(alert_id: str, body: AlertStatusUpdate, db: Session = Depends(get_db)):
-    """Update an alert's workflow status. This is the only part of an alert that's persisted."""
+@app.post(
+    "/api/alerts/{alert_id}",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": AlertStatusUpdate.model_json_schema()}},
+        }
+    },
+)
+async def post_alert_status(alert_id: str, request: Request, db: Session = Depends(get_db)):
+    """
+    Update an alert's workflow status. This is the only part of an alert
+    that's persisted. Body is parsed manually (see the module-level comment
+    above this route group) because the browser sends it as text/plain to
+    avoid a CORS preflight; FastAPI only auto-parses JSON when Content-Type
+    is application/json.
+    """
+    try:
+        body = AlertStatusUpdate.model_validate_json(await request.body())
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     _require_current_alert(db, alert_id)
     new_status = (body.status or "").upper()
     if new_status not in VALID_STATUSES:

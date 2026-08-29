@@ -8,7 +8,7 @@
   "client": {
     "source": "client",
     "scripts": {
-      "predeploy": "npm install --prefix ../frontend && npm run build --prefix ../frontend && node -e \"const fs=require('fs');fs.rmSync('client',{recursive:true,force:true});fs.cpSync('../frontend/dist','client',{recursive:true});fs.copyFileSync('../frontend/package.json','client/package.json');\""
+      "predeploy": "node -e \"const fs=require('fs'),path=require('path'),cp=require('child_process');const backendRoot=['.','..','../..'].map(c=>path.resolve(c)).find(p=>fs.existsSync(path.join(p,'requirements.txt')));if(!backendRoot)throw new Error('could not locate backend/ (looked for requirements.txt) from cwd '+process.cwd());const frontendDir=path.join(backendRoot,'..','frontend');cp.execSync('npm install',{cwd:frontendDir,stdio:'inherit'});cp.execSync('npm run build',{cwd:frontendDir,stdio:'inherit'});const clientDir=path.join(backendRoot,'client');fs.rmSync(clientDir,{recursive:true,force:true});fs.cpSync(path.join(frontendDir,'dist'),clientDir,{recursive:true});fs.copyFileSync(path.join(frontendDir,'package.json'),path.join(clientDir,'client-package.json'));\""
     }
   }
 }

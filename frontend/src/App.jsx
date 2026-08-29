@@ -553,9 +553,14 @@ function AppContent() {
   // Workflow status remains independent from notification read state.
   const handleAlertStatusChange = useCallback((alertId, newStatus) => {
     setAlertMutationError(null);
+    // POST + text/plain, not PATCH/application-json: PATCH is never a CORS
+    // "simple method" (always preflighted) and this deployment's gateway
+    // answers that preflight without Access-Control-* headers, so the
+    // browser blocks it before it reaches the API. text/plain keeps this a
+    // "simple request" that skips the preflight — same fix as /api/copilot.
     return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({ status: newStatus }),
     })
       .then(parseApiResponse)
@@ -579,7 +584,8 @@ function AppContent() {
 
   const handleAlertRead = useCallback((alertId) => {
     setAlertMutationError(null);
-    return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}/read`, { method: 'PATCH' })
+    // POST, not PATCH — see the comment on handleAlertStatusChange above.
+    return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}/read`, { method: 'POST' })
       .then(parseApiResponse)
       .then((result) => {
         if (!result?.success) throw new Error('Could not mark alert read');
@@ -606,7 +612,8 @@ function AppContent() {
 
   const handleMarkAllRead = useCallback(() => {
     setAlertMutationError(null);
-    return fetch(`${API_URL}/api/notifications/read-all`, { method: 'PATCH' })
+    // POST, not PATCH — see the comment on handleAlertStatusChange above.
+    return fetch(`${API_URL}/api/notifications/read-all`, { method: 'POST' })
       .then(parseApiResponse)
       .then((result) => {
         if (!result?.success) throw new Error('Could not mark all alerts read');
@@ -818,7 +825,11 @@ function AppContent() {
                           <p className="notification-dropdown__empty">You're all caught up.</p>
                         ) : notifications.map((alert) => (
                           <button key={alert.id} type="button" className="notification-item" onClick={() => {
-                            handleAlertRead(alert.id).then(() => openAlertFromNotification(alert)).catch(() => {});
+                            // Navigation must not depend on the mark-read mutation
+                            // succeeding — a transient failure there shouldn't make
+                            // "Click to investigate" appear to do nothing.
+                            handleAlertRead(alert.id).catch(() => {});
+                            openAlertFromNotification(alert);
                           }}>
                             <span className={`notification-item__dot notification-item__dot--${alert.severity?.toLowerCase() || 'low'}`} aria-hidden="true" />
                             <span>
