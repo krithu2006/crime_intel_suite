@@ -717,7 +717,7 @@ function AppContent() {
               <h1 className="text-lg sm:text-xl font-bold tracking-tight gradient-text truncate">{t('appTitle')}</h1>
               <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">{t('appSubtitle')}</p>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <div className="app-header__actions flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {!loading && !error && (
                 <div className="notification-menu" ref={notificationRef}>
                   <button
@@ -918,7 +918,7 @@ function AppContent() {
                   <div className="dashboard-filter-row custom-scrollbar pb-1">
                     <div className="filter-group-main">
                       {/* District Filter */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="dashboard-filter-control flex items-center gap-1.5 flex-shrink-0">
                         <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('district')}</label>
                         <select
                           value={selectedDistrict}
@@ -933,7 +933,7 @@ function AppContent() {
                       </div>
 
                       {/* Crime Type Filter */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                      <div className="dashboard-filter-control flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
                         <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('crimeType')}</label>
                         <select
                           value={selectedCrimeType}
@@ -947,7 +947,7 @@ function AppContent() {
 
                       {/* Ward Scope Chip */}
                       {selectedWard && (
-                        <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                        <div className="dashboard-filter-control flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
                           <button
                             type="button"
                             onClick={clearWard}
@@ -963,7 +963,7 @@ function AppContent() {
 
                     <div className="filter-group-dates">
                       {/* From Date */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="dashboard-filter-control flex items-center gap-1.5 flex-shrink-0">
                         <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('from')}</label>
                         <input
                           type="date"
@@ -974,7 +974,7 @@ function AppContent() {
                       </div>
 
                       {/* To Date */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
+                      <div className="dashboard-filter-control flex items-center gap-1.5 flex-shrink-0 border-l border-white/10 pl-3">
                         <label className="text-[10px] text-slate-200 font-extrabold uppercase tracking-wider">{t('to')}</label>
                         <input
                           type="date"
@@ -985,7 +985,7 @@ function AppContent() {
                       </div>
 
                       {/* Update Button */}
-                      <div className="border-l border-white/10 pl-3 flex-shrink-0">
+                      <div className="dashboard-filter-control dashboard-filter-control--update border-l border-white/10 pl-3 flex-shrink-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -1311,10 +1311,6 @@ function RiskRankings({ riskScores, loading, predictionsByWard, modelPerformance
         )}
       </div>
 
-      <div className="text-xs text-slate-600 border-t border-white/5 pt-2 space-y-1">
-        <p>{t('riskMethod')}</p>
-        <p className="italic text-slate-600">{t('predictionDisclaimer')}</p>
-      </div>
     </div>
   );
 }
@@ -1405,11 +1401,11 @@ function RiskWardCard({ ward, prediction, onSelectWard }) {
 
 function StatCard({ label, value, borderColor }) {
   return (
-    <div className={`glass-card-hover p-4 sm:p-5 ${borderColor} animate-slide-up grid grid-cols-2 items-center gap-3`}>
-      <div className="text-left">
+    <div className={`dashboard-kpi-card glass-card-hover p-4 sm:p-5 ${borderColor} animate-slide-up`}>
+      <div className="dashboard-kpi-card__label text-left">
         <p className="text-lg sm:text-xl font-extrabold text-white uppercase tracking-wider leading-none">{label}</p>
       </div>
-      <div className="text-right">
+      <div className="dashboard-kpi-card__value text-right">
         <p className="text-lg sm:text-xl font-extrabold text-cyan-400 uppercase tracking-wider leading-none">{value}</p>
       </div>
     </div>

@@ -45,7 +45,7 @@ export default function RisingZones({ hotspots, loading }) {
 
   return (
     <div className="rising-zones flex flex-col gap-4 h-full">
-      <div className="flex items-center justify-between">
+      <div className="rising-zones__header flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
@@ -57,12 +57,9 @@ export default function RisingZones({ hotspots, loading }) {
           </p>
         </div>
 
-        <div className="badge bg-rose-500/20 text-rose-300 border border-rose-500/30">
-          {highRiskClusters.length} {t('highRisk')}
-        </div>
       </div>
 
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-slate-400">
+      <div className="rising-zones__summary flex items-center gap-2 text-[10px] uppercase tracking-wide text-slate-400">
         <span className="badge bg-red-500/15 text-red-300 border border-red-500/30">
           High Risk: {highRiskClusters.length}
         </span>
@@ -85,10 +82,6 @@ export default function RisingZones({ hotspots, loading }) {
         ))}
       </div>
 
-      <div className="text-xs text-slate-600 border-t border-white/5 pt-2">
-        Sorted by risk score, computed from incident concentration and average
-        severity.
-      </div>
     </div>
   );
 }
@@ -145,7 +138,7 @@ function ClusterCard({ cluster }) {
         </div>
       </div>
 
-      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+      <div className="hotspot-rank-card__facts mt-1.5 flex items-center gap-3 text-xs text-slate-500">
         <span>
           Incidents:{" "}
           <span className="text-slate-300">{cluster.incident_count}</span>

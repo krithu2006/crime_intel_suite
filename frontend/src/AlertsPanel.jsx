@@ -242,7 +242,7 @@ function AlertCard({ alert, isHighlighted, onStatusChange, onAlertRead, onNaviga
           <span className="text-[11px] text-slate-500 font-mono">
             {formatDate(alert.period || alert.detected_at)}
           </span>
-          <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/10" onClick={(e) => e.stopPropagation()}>
+          <div className="alert-lifecycle flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/10" onClick={(e) => e.stopPropagation()}>
             {LIFECYCLE.map((s) => {
               const btnKey = s === 'NEW' ? 'statusNew' : s === 'REVIEWED' ? 'statusReviewed' : s === 'INVESTIGATING' ? 'statusInvestigating' : 'statusClosed';
               return (
