@@ -762,6 +762,7 @@ function AppContent() {
       onClear={() => setSelectedNodeId(null)}
       onNodeSelect={setSelectedNodeId}
       filters={{ district: selectedDistrict, crimeType: selectedCrimeType, from: dateFrom, to: dateTo }}
+      theme={theme}
     />;
   }
 
@@ -1245,6 +1246,7 @@ function AppContent() {
                                   onNodeSelect={setSelectedNodeId}
                                   dateFrom={dateFrom}
                                   dateTo={dateTo}
+                                  theme={theme}
                                 />
                               }
                             </div>

@@ -26,6 +26,40 @@ const COMMUNITY_COLORS = [
   '#c026d3', '#06b6d4', '#f43f5e', '#10b981', '#fbbf24',
 ];
 
+// Categorical node/community colors above stay identical in both themes —
+// they're accent colors, not surface/text colors, and are already saturated
+// enough to read against either background. What DOES need to change per
+// theme is everything the ForceGraph2D <canvas> paints as chrome around
+// those dots: background, node outline, and label. Canvas drawing commands
+// take literal color strings, not CSS custom properties, so these mirror
+// (and must be kept in sync with) the --bg-primary/--text-primary/etc.
+// tokens in index.css : root / :root[data-theme="light"] — same design
+// tokens, just in a form <canvas> can consume. See NetworkGraph's `nt`.
+const NETWORK_CANVAS_THEME = {
+  dark: {
+    background: '#030b20',       // --bg-primary (dark)
+    gridLine: 'rgba(226, 232, 240, 0.10)',
+    nodeStroke: 'rgba(255, 255, 255, 0.35)',
+    nodeStrokeFocus: '#4aa8ff',  // --accent (dark)
+    labelBg: 'rgba(8, 29, 66, 0.88)',   // --glass-bg-strong (dark)
+    labelText: '#f1f7ff',        // --text-primary (dark)
+    linkMobileDefault: 'rgba(108, 219, 255, 0.55)',
+    linkActive: '#4aa8ff',
+    linkBase: '14, 165, 233',
+  },
+  light: {
+    background: '#ffffff',
+    gridLine: 'rgba(203, 213, 225, 0.4)',
+    nodeStroke: 'rgba(15, 23, 42, 0.25)',
+    nodeStrokeFocus: '#176fd1',  // --accent (light)
+    labelBg: 'rgba(255, 255, 255, 0.92)',
+    labelText: '#0f172a',
+    linkMobileDefault: 'rgba(14, 116, 144, 0.72)',
+    linkActive: '#0284c7',
+    linkBase: '14, 165, 233',
+  },
+};
+
 function getDisplayName(node) {
   return node?.name || node?.accused_name || node?.label || `Individual ${node?.id ?? ''}`;
 }
@@ -68,8 +102,10 @@ function fmtDate(value) {
 //  NETWORK GRAPH
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, dateFrom, dateTo }) {
+export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, dateFrom, dateTo, theme }) {
   const { t } = useTranslation();
+  const isDark = theme !== 'light';
+  const nt = isDark ? NETWORK_CANVAS_THEME.dark : NETWORK_CANVAS_THEME.light;
   const fgRef = useRef();
   const graphContainerRef = useRef(null);
   const [hoverId, setHoverId] = useState(null);
@@ -181,16 +217,16 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     const src = getNodeId(link.source);
     const tgt = getNodeId(link.target);
     const active = focusId != null && (src === focusId || tgt === focusId);
-    if (focusId != null) return active ? '#0284c7' : 'rgba(14,165,233,0.16)';
+    if (focusId != null) return active ? nt.linkActive : `rgba(${nt.linkBase},0.16)`;
     if (highlightedCommunity !== null) {
       const sN = graphData.nodes.find((n) => n.id === src);
       const tN = graphData.nodes.find((n) => n.id === tgt);
       const inCommunity = sN?.community_id === highlightedCommunity && tN?.community_id === highlightedCommunity;
-      return inCommunity ? '#0284c7' : 'rgba(14,165,233,0.12)';
+      return inCommunity ? nt.linkActive : `rgba(${nt.linkBase},0.12)`;
     }
     const alpha = 0.34 + 0.42 * (link.weight / maxWeight);
-    return `rgba(14, 165, 233, ${alpha.toFixed(2)})`;
-  }, [focusId, graphData.nodes, highlightedCommunity, maxWeight]);
+    return `rgba(${nt.linkBase}, ${alpha.toFixed(2)})`;
+  }, [focusId, graphData.nodes, highlightedCommunity, maxWeight, nt]);
 
   const getLinkWidth = useCallback((link) => {
     const src = getNodeId(link.source);
@@ -214,10 +250,10 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     ctx.lineTo(target.x, target.y);
     ctx.strokeStyle = focusId != null || highlightedCommunity !== null
       ? getLinkColor(link)
-      : 'rgba(14, 116, 144, 0.72)';
+      : nt.linkMobileDefault;
     ctx.lineWidth = Math.max(1.8, getLinkWidth(link)) / globalScale;
     ctx.stroke();
-  }, [focusId, getLinkColor, getLinkWidth, highlightedCommunity]);
+  }, [focusId, getLinkColor, getLinkWidth, highlightedCommunity, nt]);
 
   const searchMatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -266,6 +302,18 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     return () => window.clearTimeout(t);
   }, [graphData, isMobileGraph, mobileGraphSize]);
 
+  // ForceGraph2D stops its render loop once the simulation cools down (perf
+  // optimization) and only repaints again on interaction. drawNode/getLinkColor
+  // above already pick up the new `nt` palette via their own dependency
+  // arrays, but nothing would trigger an actual repaint until the user zoomed
+  // or panned — so switching Dark/Light Glass wouldn't visibly change
+  // anything until then. Re-applying the current zoom level (same value, 0ms)
+  // is a no-op on the camera but forces one immediate canvas repaint.
+  useEffect(() => {
+    if (!fgRef.current) return;
+    fgRef.current.zoom(fgRef.current.zoom(), 0);
+  }, [theme]);
+
   const isDimmed = useCallback(
     (nodeId, communityId) => {
       if (searchMatches) return !searchMatches.has(nodeId);
@@ -300,7 +348,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
 
       if (!dimmed) {
         ctx.lineWidth = (isFocus ? 2.5 : 1) / globalScale;
-        ctx.strokeStyle = isFocus ? '#0284c7' : 'rgba(15,23,42,0.25)';
+        ctx.strokeStyle = isFocus ? nt.nodeStrokeFocus : nt.nodeStroke;
         ctx.stroke();
 
         // Community leader → gold ring; bridge (Connector) → dashed cyan ring.
@@ -330,14 +378,14 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
         ctx.textBaseline = 'top';
         const y = node.y + r + 4 / globalScale;
         const w = ctx.measureText(label).width + 8 / globalScale;
-        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillStyle = nt.labelBg;
         ctx.fillRect(node.x - w / 2, y - 2 / globalScale, w, fontSize * 1.3);
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = nt.labelText;
         ctx.fillText(label, node.x, y);
       }
       ctx.globalAlpha = 1;
     },
-    [isDimmed, focusId, searchMatches]
+    [isDimmed, focusId, searchMatches, nt]
   );
 
   // ── Zoom / view controls ──
@@ -366,7 +414,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
 
   if (loading) {
     return (
-      <div className="absolute inset-0 z-[1000] bg-white/90 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+      <div className="network-loading-overlay absolute inset-0 z-[1000] bg-white/90 backdrop-blur-sm flex items-center justify-center rounded-2xl">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-sky-500/30 border-t-sky-600 rounded-full animate-spin" />
           <p className="text-sm font-medium text-slate-700">{t('mappingNetwork')}</p>
@@ -377,7 +425,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
 
   if (!network?.nodes?.length) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center gap-2 bg-white border border-slate-200 rounded-2xl">
+      <div className="network-console h-full flex flex-col items-center justify-center text-center gap-2 bg-white border border-slate-200 rounded-2xl">
         <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
         </svg>
@@ -397,7 +445,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
         className="network-console__grid pointer-events-none absolute inset-0 opacity-[0.5]"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(203,213,225,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(203,213,225,0.4) 1px, transparent 1px)',
+            `linear-gradient(${nt.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${nt.gridLine} 1px, transparent 1px)`,
           backgroundSize: '32px 32px',
         }}
       />
@@ -411,19 +459,21 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
           graphData={graphData}
           width={isMobileGraph && mobileGraphSize.width ? mobileGraphSize.width : undefined}
           height={isMobileGraph && mobileGraphSize.height ? mobileGraphSize.height : undefined}
-          backgroundColor="#ffffff"
+          backgroundColor={nt.background}
           nodeRelSize={4}
           nodeLabel={(node) => {
             const flags = [
               node.is_leader ? `<span style="color:#d97706;font-weight:700">★ ${t('leader')}</span>` : '',
-              node.is_bridge ? `<span style="color:#0284c7;font-weight:700">⇄ ${t('bridge')}</span>` : '',
+              node.is_bridge ? `<span style="color:${nt.linkActive};font-weight:700">⇄ ${t('bridge')}</span>` : '',
             ].filter(Boolean).join(' · ');
-            return `<div style="font-family:Inter,sans-serif;font-size:12px;color:#0f172a;background:#ffffff;border:1px solid #cbd5e1;padding:8px 10px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15)">
-              <div style="font-weight:700;color:#0f172a;margin-bottom:2px">${getDisplayName(node)}</div>
-              <div style="color:#0284c7;font-weight:600">${node.tag || 'Associate'} · Group ${node.community_label ?? '—'}</div>
+            const secondary = isDark ? '#94a3b8' : '#475569';
+            const faint = isDark ? '#7791b3' : '#64748b';
+            return `<div style="font-family:Inter,sans-serif;font-size:12px;color:${nt.labelText};background:${nt.labelBg};border:1px solid ${nt.nodeStroke};padding:8px 10px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.25)">
+              <div style="font-weight:700;color:${nt.labelText};margin-bottom:2px">${getDisplayName(node)}</div>
+              <div style="color:${nt.linkActive};font-weight:600">${node.tag || 'Associate'} · Group ${node.community_label ?? '—'}</div>
               ${flags ? `<div style="margin-top:2px">${flags}</div>` : ''}
-              <div style="color:#475569;margin-top:3px">${node.incident_count ?? 0} ${t('incidentsCount')} · ${node.degree_count ?? 0} ${t('connections')}</div>
-              <div style="color:#64748b">${node.dominant_crime || ''} ${node.primary_district ? '· ' + node.primary_district : ''}</div>
+              <div style="color:${secondary};margin-top:3px">${node.incident_count ?? 0} ${t('incidentsCount')} · ${node.degree_count ?? 0} ${t('connections')}</div>
+              <div style="color:${faint}">${node.dominant_crime || ''} ${node.primary_district ? '· ' + node.primary_district : ''}</div>
             </div>`;
           }}
           nodeCanvasObjectMode={() => 'replace'}
@@ -446,7 +496,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
             return active ? 3 : 0;
           }}
           linkDirectionalParticleWidth={2.5}
-          linkDirectionalParticleColor={() => '#0284c7'}
+          linkDirectionalParticleColor={() => nt.linkActive}
           onNodeHover={(node) => setHoverId(node ? node.id : null)}
           onNodeClick={(node) => {
             setHighlightedCommunity(null);
@@ -513,6 +563,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
               onNodeSelect={onNodeSelect}
               dateFrom={dateFrom}
               dateTo={dateTo}
+              theme={theme}
             />
           )}
         </MapPopupButton>
@@ -612,8 +663,13 @@ function ZoomBtn({ children, onClick, title }) {
 //  NETWORK SIDEBAR — offender dossier
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect, filters }) {
+export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect, filters, theme }) {
   const { t } = useTranslation();
+  // Avatar initials stay white regardless of theme, so the gradient's inner
+  // stop stays dark enough in both themes for that white text to read — a
+  // small, deliberate exception to "light surface in light mode" for a
+  // vivid, saturated color chip this size (not a body-text surface).
+  const avatarInnerStop = theme === 'light' ? '#1e293b' : '#0b1120';
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -716,7 +772,7 @@ export function NetworkSidebar({ selectedNodeId, network, onClear, onNodeSelect,
       <div className="flex items-start gap-3 mb-4">
         <div
           className="network-avatar w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 border border-white/15"
-          style={{ background: `linear-gradient(135deg, ${getCommunityColor(nodeInfo.community_id)}cc, #0b1120)` }}
+          style={{ background: `linear-gradient(135deg, ${getCommunityColor(nodeInfo.community_id)}cc, ${avatarInnerStop})` }}
         >
           {initials(person.name)}
         </div>
