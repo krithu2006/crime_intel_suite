@@ -55,9 +55,9 @@ async function parseApiResponse(response) {
 
 function getInitialTheme() {
   try {
-    return localStorage.getItem('crime-intel-theme') === 'light' ? 'light' : 'dark';
+    return localStorage.getItem('crime-intel-theme') === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'dark';
+    return 'light';
   }
 }
 
