@@ -41,6 +41,18 @@ const FEATURE_TRANSLATION_KEYS = {
   drilldown: 'districtIntelligence',
 };
 
+function getAlertTargetFromUrl() {
+  return new URLSearchParams(window.location.search).get('alert');
+}
+
+async function parseApiResponse(response) {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.error) {
+    throw new Error(payload?.detail || payload?.error || `Request failed (${response.status})`);
+  }
+  return payload;
+}
+
 function getInitialTheme() {
   try {
     return localStorage.getItem('crime-intel-theme') === 'light' ? 'light' : 'dark';
@@ -106,20 +118,21 @@ function AppContent() {
   const [alertsData, setAlertsData] = useState(null);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertSeverityFilter, setAlertSeverityFilter] = useState('ALL');
-  const [alertStatusFilter, setAlertStatusFilter] = useState('ACTIVE');
+  const [alertStatusFilter, setAlertStatusFilter] = useState(() => getAlertTargetFromUrl() ? 'ALL' : 'ACTIVE');
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [notificationSeverityCounts, setNotificationSeverityCounts] = useState({});
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationRef = useRef(null);
-  const [selectedAlertId, setSelectedAlertId] = useState(null);
+  const [selectedAlertId, setSelectedAlertId] = useState(getAlertTargetFromUrl);
   const selectedAlertTimer = useRef(null);
+  const [alertMutationError, setAlertMutationError] = useState(null);
   const analyticsRequestIds = useRef({});
 
   // View toggle: 'hotspots', 'risk', 'network', 'trends', or 'alerts'
-  const [mapView, setMapView] = useState('hotspots');
-  const [activeFeature, setActiveFeature] = useState(null);
+  const [mapView, setMapView] = useState(() => getAlertTargetFromUrl() ? 'alerts' : 'hotspots');
+  const [activeFeature, setActiveFeature] = useState(() => getAlertTargetFromUrl() ? 'alerts' : null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -518,29 +531,56 @@ function AppContent() {
     return () => document.removeEventListener('mousedown', closeOnOutsideClick);
   }, [notificationsOpen, fetchNotifications]);
 
+  // A notification target is a real deep link, not transient component state.
+  // It therefore still opens the exact generated alert after a browser refresh
+  // or a history back/forward navigation.
+  useEffect(() => {
+    const syncAlertTarget = () => {
+      const target = getAlertTargetFromUrl();
+      setSelectedAlertId(target);
+      if (target) {
+        setAlertSeverityFilter('ALL');
+        setAlertStatusFilter('ALL');
+        setMapView('alerts');
+        setActiveFeature('alerts');
+      }
+    };
+    window.addEventListener('popstate', syncAlertTarget);
+    return () => window.removeEventListener('popstate', syncAlertTarget);
+  }, []);
+
   // A status change updates the local list immediately (no full refetch) and
   // Workflow status remains independent from notification read state.
   const handleAlertStatusChange = useCallback((alertId, newStatus) => {
+    setAlertMutationError(null);
     return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
-      .then((res) => res.json())
+      .then(parseApiResponse)
       .then((updated) => {
-        if (updated?.error) throw new Error(updated.error);
         setAlertsData((prev) => {
           if (!prev) return prev;
           const nextAlerts = prev.alerts.map((a) => (a.id === alertId ? { ...a, status: updated.status, note: updated.note } : a));
           return { ...prev, alerts: nextAlerts };
         });
+        // The server summary is calculated over the complete scoped alert
+        // set (not merely the currently filtered card list), so refresh it to
+        // keep status-dependent counts correct without a page reload.
+        fetchAlerts();
         return updated;
+      })
+      .catch((error) => {
+        setAlertMutationError(error.message || 'Could not update alert status.');
+        throw error;
       });
-  }, []);
+  }, [fetchAlerts]);
 
   const handleAlertRead = useCallback((alertId) => {
+    setAlertMutationError(null);
     return fetch(`${API_URL}/api/alerts/${encodeURIComponent(alertId)}/read`, { method: 'PATCH' })
-      .then((res) => res.json())
+      .then(parseApiResponse)
       .then((result) => {
         if (!result?.success) throw new Error('Could not mark alert read');
         setAlertsData((prev) => prev ? {
@@ -549,20 +589,25 @@ function AppContent() {
         } : prev);
         setNotifications((prev) => {
           const readAlert = prev.find((alert) => alert.id === alertId);
-          if (readAlert?.severity) {
+          if (result.marked_read && readAlert?.severity) {
             setNotificationSeverityCounts((counts) => ({ ...counts, [readAlert.severity]: Math.max(0, (counts[readAlert.severity] || 0) - 1) }));
           }
           return prev.filter((alert) => alert.id !== alertId);
         });
-        setUnreadAlertCount((count) => Math.max(0, count - 1));
+        if (result.marked_read) setUnreadAlertCount((count) => Math.max(0, count - 1));
         fetchUnreadAlertCount();
         return result;
+      })
+      .catch((error) => {
+        setAlertMutationError(error.message || 'Could not mark alert read.');
+        throw error;
       });
   }, [fetchUnreadAlertCount]);
 
   const handleMarkAllRead = useCallback(() => {
+    setAlertMutationError(null);
     return fetch(`${API_URL}/api/notifications/read-all`, { method: 'PATCH' })
-      .then((res) => res.json())
+      .then(parseApiResponse)
       .then((result) => {
         if (!result?.success) throw new Error('Could not mark all alerts read');
         setUnreadAlertCount(0);
@@ -574,6 +619,10 @@ function AppContent() {
         } : prev);
         fetchUnreadAlertCount();
         return result;
+      })
+      .catch((error) => {
+        setAlertMutationError(error.message || 'Could not mark all alerts read.');
+        throw error;
       });
   }, [fetchUnreadAlertCount]);
 
@@ -595,11 +644,20 @@ function AppContent() {
     setAlertSeverityFilter('ALL');
     setAlertStatusFilter('ALL');
     setSelectedAlertId(alert.id);
-    if (selectedAlertTimer.current) window.clearTimeout(selectedAlertTimer.current);
-    selectedAlertTimer.current = window.setTimeout(() => setSelectedAlertId(null), 3000);
+    const url = new URL(window.location.href);
+    url.searchParams.set('alert', alert.id);
+    window.history.pushState({}, '', url);
     setNotificationsOpen(false);
     openFeature('alerts');
   }, [openFeature]);
+
+  // Start the temporary emphasis only after the card actually exists in the
+  // rendered list. This avoids losing the target while a slow analytics fetch
+  // is still in progress.
+  const handleAlertFocused = useCallback(() => {
+    if (selectedAlertTimer.current) window.clearTimeout(selectedAlertTimer.current);
+    selectedAlertTimer.current = window.setTimeout(() => setSelectedAlertId(null), 3000);
+  }, []);
 
   const handleAlertNavigate = useCallback((action, alert) => {
     setSelectedDistrict(alert.district || '');
@@ -1134,6 +1192,8 @@ function AppContent() {
                               onMarkAllRead={handleMarkAllRead}
                               unreadCount={unreadAlertCount}
                               selectedAlertId={selectedAlertId}
+                              mutationError={alertMutationError}
+                              onAlertFocused={handleAlertFocused}
                               onNavigate={handleAlertNavigate}
                               onSelectWard={selectWard}
                             />

@@ -19,16 +19,24 @@
       "timezone": "Asia/Kolkata",
       "env": [
         {
-          "idx": 1,
-          "id": "60080091420",
-          "name": "Development",
-          "type": 3
-        },
-        {
           "idx": 2,
           "id": "50044350499",
           "name": "Production",
           "type": 1
+        },
+        {
+          "idx": 1,
+          "id": "60080091420",
+          "name": "Development",
+          "type": 3,
+          "env_status": "Active",
+          "project_details": {
+            "project_name": "Project-Rainfall",
+            "id": "46507000000013024",
+            "project_type": "Live"
+          },
+          "is_default": false,
+          "action_required": false
         }
       ]
     }

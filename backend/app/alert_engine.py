@@ -344,6 +344,7 @@ def mark_alert_read(db: Session, alert_id: str) -> dict:
     """Persist notification read state without changing investigation status."""
     now = datetime.utcnow()
     row = db.query(AlertStatus).filter(AlertStatus.alert_id == alert_id).first()
+    was_read = row is not None and row.read_at is not None
     if row is None:
         row = AlertStatus(
             alert_id=alert_id, status=DEFAULT_STATUS, read_at=now,
@@ -355,7 +356,9 @@ def mark_alert_read(db: Session, alert_id: str) -> dict:
         row.updated_at = now
     db.commit()
     db.refresh(row)
-    return {"success": True, **row.to_dict()}
+    # Exposing whether this request changed anything lets the client maintain
+    # its badge accurately when a click is retried or races another request.
+    return {"success": True, "was_read": was_read, "marked_read": not was_read, **row.to_dict()}
 
 
 def mark_alerts_read(db: Session, alert_ids: list[str]) -> int:
@@ -530,4 +533,5 @@ def _summarize(alerts: list[dict]) -> dict:
         "reviewed": count(lambda a: a["status"] == "REVIEWED"),
         "investigating": count(lambda a: a["status"] == "INVESTIGATING"),
         "closed": count(lambda a: a["status"] == "CLOSED"),
+        "active": count(lambda a: a["status"] in ACTIVE_STATUSES),
     }

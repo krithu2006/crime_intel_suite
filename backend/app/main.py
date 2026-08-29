@@ -26,7 +26,7 @@ import os
 import requests
 from pathlib import Path
 from datetime import datetime, time
-from fastapi import FastAPI, Depends, Query, Request
+from fastapi import FastAPI, Depends, Query, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
@@ -443,6 +443,17 @@ def _global_alerts(db: Session) -> list[dict]:
     return generate_alerts(db, status="ALL").get("alerts", [])
 
 
+def _require_current_alert(db: Session, alert_id: str) -> None:
+    """Only persist workflow state for a generated, stable alert ID.
+
+    Alerts are generated analytics rather than stored records.  Rejecting an
+    unknown ID avoids orphaned status rows and makes a stale notification fail
+    explicitly instead of appearing to update a different/nonexistent alert.
+    """
+    if not any(alert["id"] == alert_id for alert in _global_alerts(db)):
+        raise HTTPException(status_code=404, detail="Intelligence alert not found")
+
+
 @app.get("/api/notifications/count")
 def get_notification_count(db: Session = Depends(get_db)):
     """Return only the number of current intelligence alerts not yet viewed."""
@@ -463,6 +474,7 @@ def get_notifications(limit: int = Query(5, ge=1, le=20), db: Session = Depends(
 
 @app.patch("/api/alerts/{alert_id}/read")
 def patch_alert_read(alert_id: str, db: Session = Depends(get_db)):
+    _require_current_alert(db, alert_id)
     return mark_alert_read(db, alert_id)
 
 
@@ -475,13 +487,14 @@ def patch_all_notifications_read(db: Session = Depends(get_db)):
 @app.patch("/api/alerts/{alert_id}")
 def patch_alert_status(alert_id: str, body: AlertStatusUpdate, db: Session = Depends(get_db)):
     """Update an alert's workflow status. This is the only part of an alert that's persisted."""
+    _require_current_alert(db, alert_id)
     new_status = (body.status or "").upper()
     if new_status not in VALID_STATUSES:
-        return {"error": f"Invalid status '{body.status}'. Must be one of {VALID_STATUSES}."}
+        raise HTTPException(status_code=422, detail=f"Invalid status '{body.status}'. Must be one of {VALID_STATUSES}.")
     try:
         return set_alert_status(db, alert_id, new_status, note=body.note)
     except ValueError as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

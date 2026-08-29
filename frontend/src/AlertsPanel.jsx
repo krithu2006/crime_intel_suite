@@ -37,10 +37,11 @@ function formatDate(iso) {
 export default function AlertsPanel({
   alertsData, loading, granularity, onGranularityChange,
   severityFilter, onSeverityFilterChange, statusFilter, onStatusFilterChange,
-  onStatusChange, onAlertRead, onMarkAllRead, unreadCount, selectedAlertId, onNavigate, onSelectWard,
+  onStatusChange, onAlertRead, onMarkAllRead, unreadCount, selectedAlertId, mutationError, onAlertFocused, onNavigate, onSelectWard,
 }) {
   const { t } = useTranslation();
   const [sortBy, setSortBy] = useState('priority');
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
   const granularityOptions = [
     { value: 'daily', label: t('daily') },
@@ -62,8 +63,11 @@ export default function AlertsPanel({
   useEffect(() => {
     if (!selectedAlertId || loading) return;
     const target = document.querySelector(`[data-alert-id="${CSS.escape(selectedAlertId)}"]`);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [selectedAlertId, loading, sorted.length]);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onAlertFocused?.();
+    }
+  }, [selectedAlertId, loading, sorted.length, onAlertFocused]);
 
   return (
     <div className="alerts-panel glass-card p-5 space-y-5">
@@ -77,9 +81,12 @@ export default function AlertsPanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => onMarkAllRead().catch(() => {})} disabled={!unreadCount}
+          <button type="button" onClick={async () => {
+            setMarkingAllRead(true);
+            try { await onMarkAllRead(); } catch { /* error is rendered below */ } finally { setMarkingAllRead(false); }
+          }} disabled={!unreadCount || markingAllRead}
             className="mark-all-read-button" title="Mark every unread intelligence alert as read">
-            {t('markAllRead')}
+            {markingAllRead ? 'Marking…' : t('markAllRead')}
           </button>
           <FilterSelect label="Severity" value={severityFilter} options={SEVERITY_OPTIONS} onChange={onSeverityFilterChange} />
           <FilterSelect label="Status" value={statusFilter} options={STATUS_OPTIONS} onChange={onStatusFilterChange}
@@ -118,6 +125,7 @@ export default function AlertsPanel({
         </div>
       ) : (
         <>
+          {mutationError && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200" role="alert">{mutationError}</p>}
           {selectedAlert && (
             <div className="selected-alert-banner" role="status">
               <span className="selected-alert-banner__icon" aria-hidden="true">↗</span>
@@ -187,6 +195,8 @@ function SummaryItem({ label, count, color }) {
 
 function AlertCard({ alert, isHighlighted, onStatusChange, onAlertRead, onNavigate, onSelectWard }) {
   const { t } = useTranslation();
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [markingRead, setMarkingRead] = useState(false);
   const severityStyle = SEVERITY_STYLE[alert.severity] || SEVERITY_STYLE.LOW;
   const statusBadge = STATUS_BADGE[alert.status] || STATUS_BADGE.NEW;
 
@@ -214,15 +224,19 @@ function AlertCard({ alert, isHighlighted, onStatusChange, onAlertRead, onNaviga
   return (
     <div
       data-alert-id={alert.id}
-      onClick={() => { if (!alert.read) onAlertRead(alert.id).catch(() => {}); }}
+      onClick={async () => {
+        if (alert.is_read || markingRead) return;
+        setMarkingRead(true);
+        try { await onAlertRead(alert.id); } catch { /* shared error state is rendered by the panel */ } finally { setMarkingRead(false); }
+      }}
       className={`alert-card p-4 rounded-xl border transition-all ${severityStyle.card} ${
-        alert.read ? 'alert-card--read opacity-85' : 'alert-card--unread border-l-4'
+        alert.is_read ? 'alert-card--read opacity-85' : 'alert-card--unread border-l-4'
       } ${isHighlighted ? 'ring-2 ring-primary-400 border-primary-400/50 shadow-lg shadow-primary-500/10' : ''}`}
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="space-y-1 min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            {!alert.read && <span className="alert-unread-dot" title="Unread alert" />}
+            {!alert.is_read && <span className="alert-unread-dot" title="Unread alert" />}
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${severityStyle.badge}`}>
               {t(severityKey) || alert.severity}
             </span>
@@ -249,7 +263,12 @@ function AlertCard({ alert, isHighlighted, onStatusChange, onAlertRead, onNaviga
                 <button
                   key={s}
                   type="button"
-                  onClick={() => onStatusChange(alert.id, s)}
+                  onClick={async () => {
+                    if (pendingStatus) return;
+                    setPendingStatus(s);
+                    try { await onStatusChange(alert.id, s); } catch { /* shared error state is rendered by the panel */ } finally { setPendingStatus(null); }
+                  }}
+                  disabled={Boolean(pendingStatus)}
                   className={`px-2 py-1 text-[10px] font-semibold rounded-md transition-colors ${
                     alert.status === s
                       ? 'bg-primary-600 text-white shadow-sm'

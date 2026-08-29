@@ -26,6 +26,42 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function formatNumber(value, digits = 0) {
+  if (!isFiniteNumber(value)) return null;
+  return Number.isInteger(value) || digits === 0 ? String(Math.round(value)) : value.toFixed(digits);
+}
+
+function formatIncidentCount(value) {
+  const formatted = formatNumber(value);
+  return formatted == null ? 'N/A' : `${formatted} incidents`;
+}
+
+function formatPercent(value, { showPlus = true } = {}) {
+  if (!isFiniteNumber(value)) return null;
+  const rounded = Math.round(value);
+  return `${showPlus && rounded > 0 ? '+' : ''}${rounded}%`;
+}
+
+function formatChangeLabel(value, currentValue, previousValue) {
+  const pct = formatPercent(value);
+  if (pct) return pct;
+  if (previousValue === 0 && isFiniteNumber(currentValue) && currentValue > 0) return 'New activity';
+  return isFiniteNumber(currentValue) && isFiniteNumber(previousValue) ? '0%' : 'N/A';
+}
+
+function formatExpectedValue(item) {
+  const baseline = formatNumber(item.expected_value, 1);
+  if (baseline != null) return baseline;
+  if (item.expected_range && isFiniteNumber(item.expected_range.lower) && isFiniteNumber(item.expected_range.upper)) {
+    return `${formatNumber(item.expected_range.lower)}-${formatNumber(item.expected_range.upper)}`;
+  }
+  return 'No baseline';
+}
+
 export default function TrendsPanel({ trends, loading, granularity, onGranularityChange }) {
   const { t } = useTranslation();
 
@@ -112,8 +148,8 @@ function TrendSummary({ summary, sustained }) {
   const { t } = useTranslation();
   if (!summary) return null;
   const tm = trendMeta(summary.trend, t);
-  const changePct = summary.change_pct != null ? `${summary.change_pct > 0 ? '+' : ''}${summary.change_pct}%` : '—';
-  const changeColor = summary.change_pct > 0 ? 'text-rose-400' : summary.change_pct < 0 ? 'text-emerald-400' : 'text-slate-400';
+  const changePct = formatChangeLabel(summary.change_percent, summary.current_value, summary.previous_value);
+  const changeColor = summary.change_percent > 0 ? 'text-rose-400' : summary.change_percent < 0 ? 'text-emerald-400' : 'text-slate-400';
 
   return (
     <div className="trend-summary-strip flex flex-wrap items-end gap-6">
@@ -123,20 +159,20 @@ function TrendSummary({ summary, sustained }) {
       </div>
       <div>
         <p className="text-[10px] uppercase tracking-wide text-slate-500">{t('current')}</p>
-        <p className="text-xl font-bold text-white tabular-nums">{summary.current_value} incidents</p>
+        <p className="text-xl font-bold text-white tabular-nums">{formatIncidentCount(summary.current_value)}</p>
       </div>
       <div>
         <p className="text-[10px] uppercase tracking-wide text-slate-500">{t('previous')}</p>
-        <p className="text-xl font-bold text-slate-300 tabular-nums">{summary.baseline_mean} incidents</p>
+        <p className="text-xl font-bold text-slate-300 tabular-nums">{formatIncidentCount(summary.previous_value)}</p>
       </div>
       <div>
         <p className="text-[10px] uppercase tracking-wide text-slate-500">{t('change')}</p>
         <p className={`text-2xl font-bold tabular-nums ${changeColor}`}>{changePct}</p>
       </div>
-      {sustained && (
+      {sustained?.detected && (
         <div className="ml-auto text-right">
           <span className="inline-block px-2.5 py-1 text-xs font-semibold rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300">
-            Sustained {sustained.direction} ({sustained.consecutive_periods} periods)
+            Sustained {sustained.direction} ({sustained.periods} periods)
           </span>
         </div>
       )}
@@ -167,20 +203,23 @@ function AnomalyCards({ anomalies }) {
         <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
           {sorted.map((item) => {
             const style = SEVERITY_STYLE[item.severity] || SEVERITY_STYLE.LOW;
+            const pct = formatChangeLabel(item.percentage_change, item.observed_value, item.expected_value);
+            const directionLabel = item.direction === 'drop' ? 'DROP' : 'SPIKE';
+            const pctColor = item.direction === 'drop' ? 'text-emerald-400' : 'text-rose-400';
             return (
-              <div key={`${item.timestamp}:${item.crime_type}`} className="anomaly-card p-3 rounded-lg border flex flex-col gap-1.5">
+              <div key={item.id || `${item.period}:${item.ward_id || 'all'}:${item.crime_type || 'all'}`} className="anomaly-card p-3 rounded-lg border flex flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${style.badge}`}>
-                    {item.severity} SPIKE
+                    {item.severity} {directionLabel}
                   </span>
-                  <span className="text-xs font-bold text-rose-400 tabular-nums">
-                    +{item.percentage_increase}%
+                  <span className={`text-xs font-bold tabular-nums ${pctColor}`}>
+                    {pct}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-white">{item.crime_type}</p>
+                <p className="text-sm font-semibold text-white">{item.crime_type || item.ward || 'Crime'}</p>
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Observed: <strong className="text-slate-200">{item.observed_count}</strong> &middot; Expected: <strong className="text-slate-200">{item.expected_range?.[0]}-{item.expected_range?.[1]}</strong></span>
-                  <span className="text-[11px] text-slate-500">{formatDate(item.timestamp)}</span>
+                  <span>Observed: <strong className="text-slate-200">{formatNumber(item.observed_value) ?? 'N/A'}</strong> &middot; Expected: <strong className="text-slate-200">{formatExpectedValue(item)}</strong></span>
+                  <span className="text-[11px] text-slate-500">{formatDate(item.period)}</span>
                 </div>
               </div>
             );
@@ -207,22 +246,33 @@ function TopEmergingTrends({ trends, granularity }) {
         </div>
       ) : (
         <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-          {trends.map((item, idx) => (
-            <div key={item.label} className="emerging-trend-row p-3 rounded-lg border flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-bold text-slate-500 tabular-nums">{idx + 1}.</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{item.label}</p>
-                  <p className="text-xs text-slate-400 truncate">{item.subtext}</p>
+          {trends.map((item, idx) => {
+            const pct = formatChangeLabel(item.change_percent, item.current_value, item.previous_value ?? item.baseline_value);
+            const pctColor = item.change_percent > 0 || pct === 'New activity' ? 'text-rose-400' : item.change_percent < 0 ? 'text-emerald-400' : 'text-slate-400';
+            const subtext = item.subtext || [
+              item.ward,
+              item.kind === 'sustained' && item.periods ? `${item.periods} ${granularity} periods` : null,
+              isFiniteNumber(item.current_value) && isFiniteNumber(item.previous_value ?? item.baseline_value)
+                ? `${formatNumber(item.current_value)} vs ${formatNumber(item.previous_value ?? item.baseline_value, 1)}`
+                : null,
+            ].filter(Boolean).join(' · ');
+            return (
+              <div key={`${item.rank || idx}:${item.kind}:${item.ward_id || 'all'}:${item.crime_type || item.label}:${item.detected_period || ''}`} className="emerging-trend-row p-3 rounded-lg border flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-bold text-slate-500 tabular-nums">{item.rank || idx + 1}.</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{item.label || item.crime_type || item.ward || 'Crime'}</p>
+                    {subtext && <p className="text-xs text-slate-400 truncate">{subtext}</p>}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className={`text-xs font-bold tabular-nums ${pctColor}`}>
+                    {pct}
+                  </span>
                 </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <span className={`text-xs font-bold ${item.trend_pct > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {item.trend_pct > 0 ? '+' : ''}{item.trend_pct}%
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
