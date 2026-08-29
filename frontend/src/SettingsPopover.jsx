@@ -22,8 +22,8 @@ export default function SettingsPopover({ theme, onThemeChange, onClose }) {
     }}>
       <section ref={panelRef} className="settings-popover" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header className="settings-popover__header">
-          <h2 id={titleId}>{t('settings')}</h2>
-          <button type="button" className="settings-popover__close" onClick={onClose} aria-label="Close settings">×</button>
+          <h2 id={titleId}>{t('themes')}</h2>
+          <button type="button" className="settings-popover__close" onClick={onClose} aria-label="Close themes">×</button>
         </header>
         <p className="settings-popover__label">{t('themeOptions')}</p>
         <div className="settings-theme-grid">

@@ -8,7 +8,8 @@ export const translations = {
     // ── Header ──
     appTitle: "Crime Intel Suite",
     appSubtitle: "Karnataka State Police — Intelligence Dashboard",
-    settings: "Settings",
+    settings: "Themes",
+    themes: "Themes",
     backendOnline: "Backend Online",
     backendOffline: "Backend Offline",
     backendConnecting: "Connecting...",
@@ -222,7 +223,8 @@ export const translations = {
     // ── Header ──
     appTitle: "ಅಪರಾಧ ಗುಪ್ತಚರ ಕಚೇರಿ",
     appSubtitle: "ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್ — ಇಂಟೆಲಿಜೆನ್ಸ್ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
-    settings: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    settings: "ಥೀಮ್‌ಗಳು",
+    themes: "ಥೀಮ್‌ಗಳು",
     backendOnline: "ಸರ್ವರ್ ಆನ್‌ಲೈನ್",
     backendOffline: "ಸರ್ವರ್ ಆಫ್‌ಲೈನ್",
     backendConnecting: "ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ...",
@@ -436,7 +438,8 @@ export const translations = {
     // ── Header ──
     appTitle: "क्राइम इंटेलिजेंस सूट",
     appSubtitle: "कर्नाटक राज्य पुलिस — इंटेलिजेंस डैशबोर्ड",
-    settings: "सेटिंग्स",
+    settings: "थीम्स",
+    themes: "थीम्स",
     backendOnline: "सर्वर ऑनलाइन",
     backendOffline: "सर्वर ऑफलाइन",
     backendConnecting: "कनेक्ट हो रहा है...",
