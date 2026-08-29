@@ -11,6 +11,7 @@ backend/.env
 # Build artifacts — regenerated on every `catalyst deploy appsail`.
 backend/*/
 !backend/app/
+!backend/tests/
 backend/*.dist-info/
 backend/*.so
 backend/six.py
