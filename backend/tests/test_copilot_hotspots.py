@@ -122,3 +122,18 @@ def test_forecast_questions_still_route_to_risk():
     assert route_intent("Predict the crime risk for the next 30 days.") == "RISK"
     assert route_intent("Predict future hotspots.") == "RISK"
     assert route_intent("Which wards are high risk?") == "RISK"
+
+
+def test_hotspot_comparison_routes_to_hotspot_not_ward_compare():
+    """
+    "Compare the top 5 hotspots" mentions no ward names, so the generic
+    COMPARE path (which only matches two named wards in the message text)
+    used to dead-end with "I could not reliably identify two wards to
+    compare" instead of ranking hotspots. A hotspot noun must win.
+    """
+    assert route_intent("Compare the top 5 hotspots.") == "HOTSPOT"
+
+
+def test_ward_to_ward_comparison_is_unaffected(db):
+    """Genuine ward-vs-ward comparisons (no hotspot noun) must still route to COMPARE."""
+    assert route_intent("Compare Kalaburagi Demo Zone 1 and Kalaburagi Demo Zone 2") == "COMPARE"

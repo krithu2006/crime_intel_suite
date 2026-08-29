@@ -10,6 +10,7 @@ import AlertsPanel from './AlertsPanel.jsx';
 import DrilldownPanel from './DrilldownPanel.jsx';
 import IntelligenceBrief from './IntelligenceBrief.jsx';
 import SettingsPopover from './SettingsPopover.jsx';
+import AssistantMarkdown from './AssistantMarkdown.jsx';
 import { LanguageProvider, useTranslation } from './LanguageContext.jsx';
 import { LANGUAGE_OPTIONS } from './translations.js';
 
@@ -1779,7 +1780,7 @@ function AiCopilotPanel({
                   className={`ai-message-row ai-message-row--${isUser ? 'user' : 'assistant'}`}
                 >
                   <div className={`ai-message-bubble ai-message-bubble--${isUser ? 'user' : 'assistant'}`}>
-                    {message.text}
+                    {isUser ? message.text : <AssistantMarkdown content={message.text} />}
                   </div>
 
                   {/* Evidence block for assistant messages */}

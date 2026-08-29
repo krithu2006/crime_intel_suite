@@ -76,16 +76,24 @@ def route_intent(message: str) -> str:
     q = message.lower()
     if any(x in q for x in ("cricket", "football", "weather", "stock price", "recipe", "movie review")): return "OUT_OF_SCOPE"
     if any(x in q for x in UNAVAILABLE_DATA_TOPICS): return "UNAVAILABLE_DATA"
+    # A hotspot noun outranks the generic "compare"/"risk" keywords below:
+    # - "Compare the top 5 hotspots" matched COMPARE first, which only knows
+    #   how to compare two named WARDS by text-matching; finding none, it
+    #   dead-ended with "I could not reliably identify two wards to compare"
+    #   instead of ranking hotspots (which the HOTSPOT evidence already
+    #   contains, pre-sorted by risk, and the LLM prompt already knows to
+    #   render a comparison of several ranked items as a table).
+    # - "which hotspot has the highest RISK score" / "highest-RISK hotspots"
+    #   are questions about DBSCAN cluster risk scores (descriptive, from
+    #   detect_hotspots), not the ward-level predictive forecast; they used
+    #   to match the RISK branch below and come back with forecast evidence
+    #   and no hotspot data at all.
+    # Explicit forecast verbs still win, so "predict future hotspots" still
+    # routes to the predictive model, and a ward-to-ward comparison with no
+    # hotspot noun ("compare Ward A and Ward B") is untouched.
+    if any(x in q for x in _HOTSPOT_NOUNS) and not any(x in q for x in _FORECAST_VERBS): return "HOTSPOT"
     if any(x in q for x in ("compare", "versus", " vs ", "difference between")): return "COMPARE"
     if "which ward" in q and any(x in q for x in ("attention", "priority", "focus")): return "SUMMARY"
-    # A hotspot noun outranks the generic "risk" keyword: "which hotspot has
-    # the highest RISK score" / "highest-RISK hotspots" are questions about
-    # DBSCAN cluster risk scores (descriptive, from detect_hotspots), not about
-    # the ward-level predictive forecast. Without this they matched the RISK
-    # branch below and came back with forecast evidence and no hotspot data at
-    # all. Explicit forecast verbs still win, so "predict future hotspots"
-    # still routes to the predictive model.
-    if any(x in q for x in _HOTSPOT_NOUNS) and not any(x in q for x in _FORECAST_VERBS): return "HOTSPOT"
     if any(x in q for x in ("risk", "predict", "forecast", "future", "high risk", "ಅಪಾಯ", "ಮುನ್ಸೂಚನೆ", "जोखिम", "पूर्वानुमान")): return "RISK"
     if any(x in q for x in ("trend", "changed", "change", "rising", "increasing", "baseline", "anomal", "ಪ್ರವೃತ್ತ", "ಬದಲಾವಣೆ", "ट्रेंड", "परिवर्तन", "बढ़")): return "TREND"
     if any(x in q for x in ("alert", "warning", "ಎಚ್ಚರ", "अलर्ट", "चेतावनी")): return "ALERT"
@@ -564,7 +572,7 @@ def _call_llm(message: str, evidence: dict, history: list[dict], lang: str = "en
         lang_prompt = " CRITICAL INSTRUCTION: Respond ENTIRELY in Hindi (हिन्दी) Devanagari script. Output all explanations, insights, and summaries in natural, professional Hindi."
 
     body = {"model": os.getenv("OPENAI_MODEL", "llama-3.3-70b-versatile"), "messages": [
-        {"role": "system", "content": f"You are Intelligence Copilot for Crime Intel Suite. Answer all user questions helpfully. For dashboard questions, analyse the supplied evidence before answering: state the most important finding, connect relevant risk/trend/alert signals, distinguish observed facts from predictions, explain uncertainty or data limitations, and suggest safe analytical next steps when useful. Use only the supplied structured evidence and never invent numbers, people, locations, causes, certainty, or enforcement recommendations. For general questions, give a concise, factual answer and make clear that it is not dashboard evidence. Use short headings or bullets when they make an analytical answer clearer. {lang_prompt}"},
+        {"role": "system", "content": f"You are Intelligence Copilot for Crime Intel Suite. Answer all user questions helpfully. For dashboard questions, analyse the supplied evidence before answering: state the most important finding, connect relevant risk/trend/alert signals, distinguish observed facts from predictions, explain uncertainty or data limitations, and suggest safe analytical next steps when useful. Use only the supplied structured evidence and never invent numbers, people, locations, causes, certainty, or enforcement recommendations. For general questions, give a concise, factual answer and make clear that it is not dashboard evidence. Format the response as Markdown, rendered in a chat panel — match structure to the question: a single fact or a question about one specific item (e.g. \"which X has the highest Y\") gets a short heading plus a compact bullet list of that item's own fields, not a table; a request to compare multiple items or rank several of them is the only case that should use a Markdown table; a request to analyze/summarize a broader scope gets a brief structured summary (a short paragraph and/or a few bullets, optionally one small table of the top few items) rather than dumping every available field. Never emit raw table syntax outside an actual Markdown table, and do not pad a simple answer with an unnecessary table just because the evidence contains a list. {lang_prompt}"},
         *[{"role": x.get("role", "user"), "content": str(x.get("content", ""))[:1200]} for x in history[-8:]],
         {"role": "user", "content": f"Evidence context (authoritative):\n{json.dumps(evidence, ensure_ascii=False, default=str)[:10000]}\n\nQuestion: {message}"},
     ], "temperature": 0.1, "max_tokens": 400}
