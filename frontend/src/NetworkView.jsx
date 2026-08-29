@@ -71,10 +71,37 @@ function fmtDate(value) {
 export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, dateFrom, dateTo }) {
   const { t } = useTranslation();
   const fgRef = useRef();
+  const graphContainerRef = useRef(null);
   const [hoverId, setHoverId] = useState(null);
   const [highlightedCommunity, setHighlightedCommunity] = useState(null);
   const [search, setSearch] = useState('');
   const [ready, setReady] = useState(false);
+  const [isMobileGraph, setIsMobileGraph] = useState(false);
+  const [mobileGraphSize, setMobileGraphSize] = useState({ width: 0, height: 0 });
+
+  // ForceGraph defaults its Canvas to the browser viewport. The mobile graph
+  // occupies only the upper portion of the console, so give the Canvas its
+  // actual container size and keep it in sync as responsive layout settles.
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 640px)');
+    const update = () => setIsMobileGraph(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileGraph || !graphContainerRef.current) return undefined;
+    const element = graphContainerRef.current;
+    const updateSize = () => {
+      const { width, height } = element.getBoundingClientRect();
+      setMobileGraphSize({ width: Math.round(width), height: Math.round(height) });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isMobileGraph]);
 
   // Fade-in the canvas once data is present.
   useEffect(() => {
@@ -136,11 +163,6 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     };
   }, [network]);
 
-  const maxWeight = useMemo(
-    () => Math.max(...graphData.links.map((l) => l.weight), 1),
-    [graphData]
-  );
-
   // Which node is the current "focus" (selection wins over hover).
   const focusId = selectedNodeId ?? hoverId;
   const focusNeighbors = useMemo(() => {
@@ -149,6 +171,53 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     adjacency.get(focusId)?.forEach((id) => set.add(id));
     return set;
   }, [focusId, adjacency]);
+
+  const maxWeight = useMemo(
+    () => Math.max(...graphData.links.map((l) => l.weight), 1),
+    [graphData]
+  );
+
+  const getLinkColor = useCallback((link) => {
+    const src = getNodeId(link.source);
+    const tgt = getNodeId(link.target);
+    const active = focusId != null && (src === focusId || tgt === focusId);
+    if (focusId != null) return active ? '#0284c7' : 'rgba(14,165,233,0.16)';
+    if (highlightedCommunity !== null) {
+      const sN = graphData.nodes.find((n) => n.id === src);
+      const tN = graphData.nodes.find((n) => n.id === tgt);
+      const inCommunity = sN?.community_id === highlightedCommunity && tN?.community_id === highlightedCommunity;
+      return inCommunity ? '#0284c7' : 'rgba(14,165,233,0.12)';
+    }
+    const alpha = 0.34 + 0.42 * (link.weight / maxWeight);
+    return `rgba(14, 165, 233, ${alpha.toFixed(2)})`;
+  }, [focusId, graphData.nodes, highlightedCommunity, maxWeight]);
+
+  const getLinkWidth = useCallback((link) => {
+    const src = getNodeId(link.source);
+    const tgt = getNodeId(link.target);
+    const active = focusId != null && (src === focusId || tgt === focusId);
+    return active ? 2.8 : Math.min(3.2, 1.0 + (link.weight / maxWeight) * 2.4);
+  }, [focusId, maxWeight]);
+
+  // The compact mobile canvas benefits from direct paths. Keeping the links
+  // straight at this size prevents the default curved paths from collapsing
+  // into the dense node clusters after the graph is fitted to the canvas.
+  // Desktop continues to use ForceGraph's existing curved-link renderer.
+  const drawMobileLink = useCallback((link, ctx, globalScale) => {
+    const source = link.source;
+    const target = link.target;
+    if (!Number.isFinite(source?.x) || !Number.isFinite(source?.y)
+      || !Number.isFinite(target?.x) || !Number.isFinite(target?.y)) return;
+
+    ctx.beginPath();
+    ctx.moveTo(source.x, source.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.strokeStyle = focusId != null || highlightedCommunity !== null
+      ? getLinkColor(link)
+      : 'rgba(14, 116, 144, 0.72)';
+    ctx.lineWidth = Math.max(1.8, getLinkWidth(link)) / globalScale;
+    ctx.stroke();
+  }, [focusId, getLinkColor, getLinkWidth, highlightedCommunity]);
 
   const searchMatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -193,9 +262,9 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
     nodeSpacing.initialize = () => {};
     fgRef.current.d3Force('nodeSpacing', nodeSpacing);
     fgRef.current.d3ReheatSimulation();
-    const t = window.setTimeout(() => fgRef.current?.zoomToFit(500, 70), 400);
+    const t = window.setTimeout(() => fgRef.current?.zoomToFit(500, isMobileGraph ? 32 : 70), 400);
     return () => window.clearTimeout(t);
-  }, [graphData]);
+  }, [graphData, isMobileGraph, mobileGraphSize]);
 
   const isDimmed = useCallback(
     (nodeId, communityId) => {
@@ -322,6 +391,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
 
   return (
       <div className="network-console relative w-full h-full rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+      <div ref={graphContainerRef} className="network-console__graph relative min-h-0">
       {/* Subtle grid backdrop for the clean light console feel */}
       <div
         className="network-console__grid pointer-events-none absolute inset-0 opacity-[0.5]"
@@ -339,6 +409,8 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
         <ForceGraph2D
           ref={fgRef}
           graphData={graphData}
+          width={isMobileGraph && mobileGraphSize.width ? mobileGraphSize.width : undefined}
+          height={isMobileGraph && mobileGraphSize.height ? mobileGraphSize.height : undefined}
           backgroundColor="#ffffff"
           nodeRelSize={4}
           nodeLabel={(node) => {
@@ -362,31 +434,11 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
             ctx.arc(node.x, node.y, node._r, 0, 2 * Math.PI);
             ctx.fill();
           }}
-          linkCurvature={0.22}
-          linkColor={(link) => {
-            const src = getNodeId(link.source);
-            const tgt = getNodeId(link.target);
-            const active = focusId != null && (src === focusId || tgt === focusId);
-            if (focusId != null) {
-              return active ? '#0284c7' : 'rgba(14,165,233,0.16)';
-            }
-            if (highlightedCommunity !== null) {
-              const sN = graphData.nodes.find((n) => n.id === src);
-              const tN = graphData.nodes.find((n) => n.id === tgt);
-              const inC =
-                sN?.community_id === highlightedCommunity && tN?.community_id === highlightedCommunity;
-              return inC ? '#0284c7' : 'rgba(14,165,233,0.12)';
-            }
-            const a = 0.34 + 0.42 * (link.weight / maxWeight);
-            return `rgba(14, 165, 233, ${a.toFixed(2)})`;
-          }}
-          linkWidth={(link) => {
-            const src = getNodeId(link.source);
-            const tgt = getNodeId(link.target);
-            const active = focusId != null && (src === focusId || tgt === focusId);
-            if (active) return 2.8;
-            return Math.min(3.2, 1.0 + (link.weight / maxWeight) * 2.4);
-          }}
+          linkCurvature={isMobileGraph ? 0 : 0.22}
+          linkColor={getLinkColor}
+          linkWidth={getLinkWidth}
+          linkCanvasObjectMode={() => (isMobileGraph ? 'replace' : undefined)}
+          linkCanvasObject={drawMobileLink}
           linkDirectionalParticles={(link) => {
             const src = getNodeId(link.source);
             const tgt = getNodeId(link.target);
@@ -402,12 +454,12 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
           }}
           onBackgroundClick={() => onNodeSelect(null)}
           cooldownTicks={120}
-          onEngineStop={() => fgRef.current?.zoomToFit(500, 70)}
+          onEngineStop={() => fgRef.current?.zoomToFit(500, isMobileGraph ? 32 : 70)}
         />
       </div>
 
       {/* ── Search (top-left) ── */}
-      <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2">
+      <div className="network-search absolute top-4 left-4 z-[1000] flex items-center gap-2">
         <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl flex items-center gap-2 px-3 py-2 shadow-lg">
           <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z" />
@@ -448,22 +500,8 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
         </p>
       </div>
 
-      {/* ── Statistics card (top-right) ── */}
-      <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl px-4 py-3 shadow-lg pointer-events-none w-[185px]">
-        <p className="text-[10px] font-bold tracking-[0.15em] text-sky-700 uppercase mb-2">{t('networkIntel')}</p>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-left">
-          <Stat label={t('individuals')} value={s.n_nodes ?? graphData.nodes.length} />
-          <Stat label={t('connections')} value={s.n_edges ?? graphData.links.length} />
-          <Stat label={t('communities')} value={s.n_communities ?? 0} />
-          <Stat label={t('avgDegree')} value={s.avg_degree ?? '—'} />
-          <div className="col-span-2 border-t border-slate-200 pt-1.5">
-            <Stat label={t('largestNetwork')} value={`${s.largest_community ?? 0}`} />
-          </div>
-        </div>
-      </div>
-
       {/* ── Zoom & Full-screen controls (bottom-right) ── */}
-      <div className="absolute bottom-4 right-4 z-[1000] flex flex-col gap-1.5">
+      <div className="network-graph-controls absolute bottom-4 right-4 z-[1000] flex flex-col gap-1.5">
         <ZoomBtn title="Zoom in" onClick={() => zoomBy(1.4)}>+</ZoomBtn>
         <ZoomBtn title="Zoom out" onClick={() => zoomBy(1 / 1.4)}>−</ZoomBtn>
         <MapPopupButton title={t('criminalNetwork')}>
@@ -485,8 +523,25 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
         </ZoomBtn>
       </div>
 
+      </div>
+
+      <div className="network-console__info">
+      {/* ── Statistics card (top-right) ── */}
+      <div className="network-intel-card absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl px-4 py-3 shadow-lg pointer-events-none w-[185px]">
+        <p className="text-[10px] font-bold tracking-[0.15em] text-sky-700 uppercase mb-2">{t('networkIntel')}</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-left">
+          <Stat label={t('individuals')} value={s.n_nodes ?? graphData.nodes.length} />
+          <Stat label={t('connections')} value={s.n_edges ?? graphData.links.length} />
+          <Stat label={t('communities')} value={s.n_communities ?? 0} />
+          <Stat label={t('avgDegree')} value={s.avg_degree ?? '—'} />
+          <div className="col-span-2 border-t border-slate-200 pt-1.5">
+            <Stat label={t('largestNetwork')} value={`${s.largest_community ?? 0}`} />
+          </div>
+        </div>
+      </div>
+
       {/* ── Legend + community list (bottom-left) ── */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl px-3.5 py-2.5 max-w-[220px] shadow-lg">
+      <div className="network-legend-card absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl px-3.5 py-2.5 max-w-[220px] shadow-lg">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-600 mb-2">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
@@ -525,6 +580,7 @@ export function NetworkGraph({ network, loading, onNodeSelect, selectedNodeId, d
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

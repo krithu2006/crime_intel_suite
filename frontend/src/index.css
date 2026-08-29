@@ -524,6 +524,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .feature-modal--network .feature-workspace { grid-template-columns: minmax(0, 2.2fr) minmax(310px, 1fr); }
 .feature-modal--network .map-stage > div { height: 100%; }
 .network-console { background: #fff !important; border-color: #cbd5e1 !important; box-shadow: 0 14px 30px rgba(14, 116, 144, .12); }
+.network-console__graph { position: absolute; inset: 0; }
 .network-control { color: var(--text-primary); }
 .network-control input { color: var(--text-primary) !important; }
 .network-sidebar-state, .network-dossier { color: var(--text-primary); }
@@ -1075,6 +1076,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .feature-modal__body { padding: 10px; }
   .feature-workspace .map-stage { height: 360px; min-height: 360px; }
   .feature-workspace .intelligence-sidebar { height: 410px; min-height: 410px; }
+  /* Network-only: reserve an information tray beneath the graph so its
+     statistics and legend never obscure the mobile network canvas. */
+  .feature-workspace--network .map-stage { height: 540px; min-height: 540px; }
+  .feature-workspace--network .network-console { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+  .feature-workspace--network .network-console__graph { position: relative; inset: auto; min-height: 0; }
+  .feature-workspace--network .network-console__info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; border-top: 1px solid #e2e8f0; background: rgba(248, 250, 252, .94); }
+  .feature-workspace--network .network-intel-card,
+  .feature-workspace--network .network-legend-card { position: static !important; width: auto !important; max-width: none; min-width: 0; margin: 0; padding: .55rem .65rem; }
+  .feature-workspace--network .network-intel-card .grid { gap: .35rem .55rem; }
+  .feature-workspace--network .network-legend-card > div:first-child { gap: .2rem .55rem; margin-bottom: .35rem; }
+  .feature-workspace--network .network-legend-card .max-h-20 { max-height: 3.5rem; }
+  .feature-workspace--network .network-search { top: 10px; left: 10px; }
+  .feature-workspace--network .network-search input { width: 7rem; }
+  .feature-workspace--network .network-graph-controls { right: 10px; bottom: 10px; }
   .settings-popover { top: 68px; right: 16px; }
   .district-insight-grid { grid-template-columns: 1fr; }
   /* Mobile AI: full-width overlay on top of dashboard */
